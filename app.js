@@ -235,9 +235,9 @@ function render(data, filename){
     '(RoomPlan interno poravnava koordinate sa zidovima, a korekcija od +90° je kalibrirana fizičkom provjerom kompasom: ' +
     'app bilježi sirovi CLHeading koji mjeri vrh uređaja, ne smjer kamere). ' +
     'Bez meta.json orijentacija je proizvoljna po sesiji skeniranja — kompas tada prati pretpostavljeni sjever. ' +
-    'Tlocrt je poravnat s najdužim zidom; sjever pokazuje kompasna ruža u legendi. Kad je sjever poznat, između dvije jednako ravne orijentacije ' +
-    '(rotirane 180°, isti tlocrt) bira se ona gdje je sjever bliže gore. Auto-odabir Portrait/Landscape (kad nije ručno postavljen) reagira odmah na ' +
-    'fizičku rotaciju ekrana. Živa strelica (🧭) dodatno kompenzira trenutni kut rotacije ekrana (screen.orientation) — sirovi kompasni signal mjeri ' +
+    'Tlocrt je poravnat s najdužim zidom (uvijek ravan); sjever pokazuje kompasna ruža u legendi. Kad je sjever poznat, od četiri osne rotacije ' +
+    '(sve jednako ravne, isti tlocrt) bira se ona gdje je sjever najbliže gore — time se ujedno određuje Portrait/Landscape, jer rotacija od 90° mijenja i to. ' +
+    'Ručnim prekidačem se to nadjačava, ali tada sjever u pravilu ostaje ~90° od gore. Živa strelica (🧭) dodatno kompenzira trenutni kut rotacije ekrana (screen.orientation) — sirovi kompasni signal mjeri ' +
     'fizički vrh uređaja, ne trenutnu orijentaciju sadržaja na ekranu. Smjer rasta signala je fizički provjeren i invertiran gdje je bilo potrebno — ' +
     'obrnut od dokumentirane konvencije na testiranom uređaju. ' +
     'Simbol otvaranja vrata (krilo + luk) je konvencija — sken ne bilježi stranu šarki ni smjer otvaranja. ' +
@@ -459,23 +459,43 @@ function renderPlan(data, showFurniture){
   const longest = data.walls.reduce((a,b) => (b.dimensions[0] > a.dimensions[0] ? b : a));
   const lseg = wallSegment(longest);
   const wallAngle = Math.atan2(lseg.p2[1]-lseg.p1[1], lseg.p2[0]-lseg.p1[0]) * 180/Math.PI;
-  let wantLandscape;
-  if (orientationOverride) {
-    wantLandscape = orientationOverride === 'landscape';
-  } else {
-    const panelW = svg.parentElement ? svg.parentElement.clientWidth : 800;
-    wantLandscape = panelW >= window.innerHeight * 0.7;
+  // how far true north lands from the top of the screen for a given 90° step
+  const northOffsetFor = step => {
+    const rose = ((-wallAngle + step - northB) % 360 + 360) % 360;
+    return Math.abs(rose > 180 ? rose - 360 : rose);
+  };
+
+  let rotDeg, wantLandscape;
+  if (northB != null && !orientationOverride) {
+    // North-up wins: pick whichever of the FOUR axis-aligned rotations puts true
+    // north closest to the top of the screen, and let that decide
+    // Portrait/Landscape. Walls stay straight in all four. This matters because
+    // a 90° step swaps Portrait<->Landscape, so fixing the orientation first and
+    // only tie-breaking the 180° flip (as this did before) can leave north stuck
+    // ~90° off — measured on the reference scan: Portrait can only reach 87° or
+    // 93° from north-up, while Landscape reaches 3°. That made "face north and
+    // the plan matches the room" impossible in Portrait no matter the flip.
+    let best = 0;
+    for (const step of [90, 180, 270]) if (northOffsetFor(step) < northOffsetFor(best)) best = step;
+    rotDeg = -wallAngle + best;
+    wantLandscape = best % 180 === 0;
     landToggle.checked = wantLandscape;
-  }
-  let rotDeg = -wallAngle + (wantLandscape ? 0 : 90);
-  // DIO C: of the two equally-straight 180°-apart variants for this Landscape/
-  // Portrait choice (a pure rotation, same shape either way — the mirror choice
-  // is otherwise arbitrary, coming from point order in the scan JSON), prefer
-  // whichever puts true north closer to "up" when it's known.
-  if (northB != null) {
-    const nb = ((rotDeg - northB) % 360 + 360) % 360;
-    const d = nb > 180 ? nb - 360 : nb; // signed distance of north from "up", (-180,180]
-    if (Math.abs(d) > 90) rotDeg = (rotDeg + 180) % 360;
+  } else {
+    if (orientationOverride) {
+      wantLandscape = orientationOverride === 'landscape';
+    } else {
+      const panelW = svg.parentElement ? svg.parentElement.clientWidth : 800;
+      wantLandscape = panelW >= window.innerHeight * 0.7;
+      landToggle.checked = wantLandscape;
+    }
+    rotDeg = -wallAngle + (wantLandscape ? 0 : 90);
+    // Manual override (or no meta.json): the user's Portrait/Landscape choice
+    // is king, but still prefer the 180° variant that puts north nearer the top.
+    if (northB != null) {
+      const nb = ((rotDeg - northB) % 360 + 360) % 360;
+      const d = nb > 180 ? nb - 360 : nb; // signed distance of north from "up", (-180,180]
+      if (Math.abs(d) > 90) rotDeg = (rotDeg + 180) % 360;
+    }
   }
   const th = rotDeg * Math.PI/180, cosT = Math.cos(th), sinT = Math.sin(th);
   const projX = (x, z) => x*cosT - z*sinT;
