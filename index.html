@@ -55,8 +55,10 @@
 
   #plan-wrap{ position:static; }
   #plan-svg{ max-width:100%; max-height:70vh; width:auto; height:auto; display:block; margin:0 auto; background:var(--bg-panel2); border-radius:var(--radius); }
-  .legend{ display:flex; gap:16px; flex-wrap:wrap; margin-top:10px; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ink-dim); }
+  .legend-row{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:10px; flex-wrap:wrap; }
+  .legend{ display:flex; gap:16px; flex-wrap:wrap; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ink-dim); }
   .legend .sw{ display:inline-block; width:12px; height:2px; margin-right:5px; vertical-align:middle; }
+  #compassSvg{ flex:0 0 auto; }
 
   .stats{ display:grid; grid-template-columns:repeat(2,1fr); gap:1px; background:var(--rule); border:1px solid var(--rule); border-radius:var(--radius); overflow:hidden; }
   .stat{ background:var(--bg-panel); padding:11px 13px; }
@@ -117,7 +119,7 @@
   .sv-grid{ stroke:#16324A; }
   .sv-floor{ fill:rgba(191,227,255,0.02); }
   .sv-wall{ stroke:#EAF6FF; }
-  .sv-wall-slope{ stroke:#D9A441; }
+  .sv-wall-slope{ stroke:#8E9BAB; }
   .sv-open-cut{ stroke:#0A1929; }
   .sv-open{ stroke:#FFDDB0; }
   .sv-furn{ fill:rgba(127,231,196,0.06); stroke:#7FE7C4; }
@@ -127,7 +129,7 @@
   .sv-muted-stroke{ stroke:#7FA0C4; }
   .sv-live{ stroke:#7FE7C4; fill:#7FE7C4; }
   .lg-wall{ background:#EAF6FF; }
-  .lg-slope{ background:#FFB067; }
+  .lg-slope{ background:#8E9BAB; }
   .lg-open{ background:#FFDDB0; }
   .lg-furn{ background:#7FE7C4; }
 
@@ -147,7 +149,7 @@
     .sv-grid{ stroke:#e5e5e5; }
     .sv-floor{ fill:rgba(0,0,0,0.03); }
     .sv-wall{ stroke:#111; }
-    .sv-wall-slope{ stroke:#8a5a00; }
+    .sv-wall-slope{ stroke:#888; }
     .sv-open-cut{ stroke:#fff; }
     .sv-open{ stroke:#8a5a00; }
     .sv-furn{ fill:rgba(0,0,0,0.04); stroke:#0a6b4f; }
@@ -157,7 +159,7 @@
     .sv-muted-stroke{ stroke:#555; }
     .sv-live{ stroke:#0a6b4f; fill:#0a6b4f; }
     .lg-wall{ background:#111; }
-    .lg-slope{ background:#8a5a00; }
+    .lg-slope{ background:#888; }
     .lg-open{ background:#b98a3f; }
     .lg-furn{ background:#0a6b4f; }
   }
@@ -196,7 +198,10 @@
           <button type="button" id="devCompassBtn" class="mini-btn" title="Prikaži trenutnu orijentaciju uređaja u kompasu">🧭</button>
         </h2>
         <svg id="plan-svg" viewBox="0 0 100 100"></svg>
-        <div class="legend" id="legend"></div>
+        <div class="legend-row">
+          <div class="legend" id="legend"></div>
+          <svg id="compassSvg" width="88" height="100" viewBox="0 0 88 100"></svg>
+        </div>
       </div>
 
       <div>
@@ -684,6 +689,8 @@ function render(data, filename){
     '(RoomPlan interno poravnava koordinate sa zidovima, a korekcija od +90° je kalibrirana fizičkom provjerom kompasom: ' +
     'app bilježi sirovi CLHeading koji mjeri vrh uređaja, ne smjer kamere). ' +
     'Bez meta.json orijentacija je proizvoljna po sesiji skeniranja — kompas tada prati pretpostavljeni sjever. ' +
+    'Tlocrt je poravnat s najdužim zidom; sjever pokazuje kompasna ruža u legendi. ' +
+    'Simbol otvaranja vrata (krilo + luk) je konvencija — sken ne bilježi stranu šarki ni smjer otvaranja. ' +
     'Adresa se dohvaća reverse geocodingom (OpenStreetMap Nominatim) — jedino se koordinate iz meta.json šalju tom servisu; sken ostaje lokalno.';
 }
 
@@ -705,7 +712,7 @@ function renderMetaPanel(){
   }
   if (m.latitude != null && m.longitude != null) {
     rows.push(['Koordinate', m.latitude.toFixed(6) + ', ' + m.longitude.toFixed(6) +
-      ' · <a href="https://maps.apple.com/?ll=' + m.latitude + ',' + m.longitude + '" target="_blank" rel="noopener" style="color:var(--amber);">Apple Maps</a>']);
+      ' · <a href="https://maps.apple.com/?q=' + m.latitude + ',' + m.longitude + '" target="_blank" rel="noopener" style="color:var(--amber);">Apple Maps</a>']);
     rows.push(['Adresa', '<span id="metaAddr">učitavam…</span>']);
   }
   if (m.headingDegrees != null) rows.push(['Heading', m.headingDegrees.toFixed(1) + '°']);
@@ -835,7 +842,11 @@ function renderPlan(data, showFurniture){
   const legend = document.getElementById('legend');
 
   const segs = data.walls.map(w => wallSegment(w));
-  if (!segs.length) { svg.innerHTML = '<text x="50" y="50" class="sv-muted" font-size="4">Nema zidova za crtanje</text>'; return; }
+  if (!segs.length) {
+    svg.innerHTML = '<text x="50" y="50" class="sv-muted" font-size="4">Nema zidova za crtanje</text>';
+    document.getElementById('compassSvg').innerHTML = '';
+    return;
+  }
 
   // Base top-down mapping (viewed from above): screen_x = world_x, screen_y = world_z.
   // IMPORTANT: ARKit/RoomPlan world yaw is session-dependent — world -Z is true
@@ -845,19 +856,12 @@ function renderPlan(data, showFurniture){
   // and the compass rotates together with the plan (it tracks the assumed north
   // direction, it does not claim true north).
   const northB = northBearingDeg(); // bearing of world -Z, or null without meta.json
-  const baseRot = northB != null ? northB : 0; // true north up when known
-  // Orientation: pick the 90° step that fits the room's long side to the panel's
-  // long side (auto), or honor the Landscape switch. The compass rotates with the
-  // plan either way, so north stays correct.
-  const bboxFor = deg => {
-    const t = deg*Math.PI/180, c = Math.cos(t), s = Math.sin(t);
-    const xs = [], ys = [];
-    for (const sg of segs) { for (const p of [sg.p1, sg.p2]) { xs.push(p[0]*c - p[1]*s); ys.push(p[0]*s + p[1]*c); } }
-    return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
-  };
-  const b0 = bboxFor(baseRot);
-  const wideRot = b0.w >= b0.h ? baseRot : baseRot + 90;
-  const tallRot = b0.w >= b0.h ? baseRot + 90 : baseRot;
+  // The drawing is always straight, aligned to the longest wall — never tilted.
+  // Landscape puts that wall horizontal, Portrait vertical; the compass rose in
+  // the legend keeps pointing at the real north either way.
+  const longest = data.walls.reduce((a,b) => (b.dimensions[0] > a.dimensions[0] ? b : a));
+  const lseg = wallSegment(longest);
+  const wallAngle = Math.atan2(lseg.p2[1]-lseg.p1[1], lseg.p2[0]-lseg.p1[0]) * 180/Math.PI;
   let wantLandscape;
   if (orientationOverride) {
     wantLandscape = orientationOverride === 'landscape';
@@ -866,7 +870,7 @@ function renderPlan(data, showFurniture){
     wantLandscape = panelW >= window.innerHeight * 0.7;
     landToggle.checked = wantLandscape;
   }
-  const rotDeg = wantLandscape ? wideRot : tallRot;
+  const rotDeg = -wallAngle + (wantLandscape ? 0 : 90);
   const th = rotDeg * Math.PI/180, cosT = Math.cos(th), sinT = Math.sin(th);
   const projX = (x, z) => x*cosT - z*sinT;
   const projY = (x, z) => x*sinT + z*cosT;
@@ -898,23 +902,53 @@ function renderPlan(data, showFurniture){
     parts.push('<polygon points="' + poly.map(p=>p.join(',')).join(' ') + '" class="sv-floor" stroke="none"/>');
   }
 
-  // walls, with slope indicator
+  // room bbox center (used for door swing direction and dimension-line offsets)
+  const wallXs = data.walls.flatMap(wg => { const s = wallSegment(wg); return [s.p1[0], s.p2[0]]; });
+  const wallYs = data.walls.flatMap(wg => { const s = wallSegment(wg); return [s.p1[1], s.p2[1]]; });
+  const centroidWorld = [ (Math.min(...wallXs)+Math.max(...wallXs))/2, (Math.min(...wallYs)+Math.max(...wallYs))/2 ];
+  const [ccx, ccy] = toSvg(...centroidWorld);
+
+  // walls: base color full length; grey overlay only where the top edge slopes
   for (const wg of data.walls) {
     const s = wallSegment(wg);
     const [x1, y1] = toSvg(...s.p1);
     const [x2, y2] = toSvg(...s.p2);
-    const cls = wg.hasSlope ? 'sv-wall-slope' : 'sv-wall';
     const dash = wg.confLevel === 'low' ? (wallStroke*1.2) + ',' + (wallStroke*0.8) : 'none';
-    parts.push('<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" class="' + cls + '" stroke-width="' + wallStroke + '" stroke-linecap="square" ' + (dash!=='none' ? 'stroke-dasharray="'+dash+'"' : '') + '/>');
+    parts.push('<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" class="sv-wall" stroke-width="' + wallStroke + '" stroke-linecap="square" ' + (dash!=='none' ? 'stroke-dasharray="'+dash+'"' : '') + '/>');
+    if (wg.hasSlope) {
+      const L = wg.dimensions[0];
+      const { pts } = topProfile(wg);
+      for (let i=0;i<pts.length-1;i++){
+        if (Math.abs(pts[i+1][1] - pts[i][1]) <= 0.02) continue; // flat part, no marker
+        const ta = Math.min(1, Math.max(0, (pts[i][0] + L/2) / L));
+        const tb = Math.min(1, Math.max(0, (pts[i+1][0] + L/2) / L));
+        const [ax, ay] = toSvg(s.p1[0] + (s.p2[0]-s.p1[0])*ta, s.p1[1] + (s.p2[1]-s.p1[1])*ta);
+        const [bx, by] = toSvg(s.p1[0] + (s.p2[0]-s.p1[0])*tb, s.p1[1] + (s.p2[1]-s.p1[1])*tb);
+        parts.push('<line x1="' + ax + '" y1="' + ay + '" x2="' + bx + '" y2="' + by + '" class="sv-wall-slope" stroke-width="' + wallStroke + '" stroke-linecap="butt"/>');
+      }
+    }
   }
 
-  // openings
+  // openings; doors additionally get the standard swing symbol (leaf + arc).
+  // Hinge side is a drawing convention — the scan records only isOpen.
   for (const o of data.openings) {
     const s = wallSegment(o);
     const [x1, y1] = toSvg(...s.p1);
     const [x2, y2] = toSvg(...s.p2);
     parts.push('<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" class="sv-open-cut" stroke-width="' + (wallStroke*1.6) + '" stroke-linecap="butt"/>');
     parts.push('<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" class="sv-open" stroke-width="' + (wallStroke*0.9) + '" stroke-linecap="butt"/>');
+    if (o.kind === 'door') {
+      const dxo = x2 - x1, dyo = y2 - y1;
+      const wpx = Math.hypot(dxo, dyo) || 1;
+      const dux = dxo/wpx, duy = dyo/wpx;
+      let nx = -duy, ny = dux;
+      const midx = (x1+x2)/2, midy = (y1+y2)/2;
+      if ((ccx-midx)*nx + (ccy-midy)*ny < 0) { nx = -nx; ny = -ny; } // swing into the room
+      const lx = x1 + nx*wpx, ly = y1 + ny*wpx; // open leaf end (hinge at p1)
+      const sweep = (dux*ny - duy*nx) > 0 ? 1 : 0;
+      parts.push('<line x1="' + x1 + '" y1="' + y1 + '" x2="' + lx + '" y2="' + ly + '" class="sv-open" stroke-width="' + (wallStroke*0.45) + '"/>');
+      parts.push('<path d="M ' + x2 + ' ' + y2 + ' A ' + wpx + ' ' + wpx + ' 0 0 ' + sweep + ' ' + lx + ' ' + ly + '" fill="none" class="sv-open" stroke-width="' + (wallStroke*0.3) + '" stroke-dasharray="' + (wallStroke*0.8) + ',' + (wallStroke*0.8) + '" opacity="0.8"/>');
+    }
   }
 
   // furniture
@@ -926,20 +960,16 @@ function renderPlan(data, showFurniture){
   }
 
   // dimension lines — always offset outward, away from the room centroid
-  const centroidWorld = [ (Math.min(...data.walls.flatMap(wg=>{const s=wallSegment(wg);return [s.p1[0],s.p2[0]];}))+Math.max(...data.walls.flatMap(wg=>{const s=wallSegment(wg);return [s.p1[0],s.p2[0]];})))/2,
-                           (Math.min(...data.walls.flatMap(wg=>{const s=wallSegment(wg);return [s.p1[1],s.p2[1]];}))+Math.max(...data.walls.flatMap(wg=>{const s=wallSegment(wg);return [s.p1[1],s.p2[1]];})))/2 ];
   const fontSize = Math.max(w,h) * 0.022;
   for (const wg of data.walls) {
     const s = wallSegment(wg);
-    const mid = [ (s.p1[0]+s.p2[0])/2, (s.p1[1]+s.p2[1])/2 ];
     const [x1, y1] = toSvg(...s.p1);
     const [x2, y2] = toSvg(...s.p2);
     const dx = x2 - x1, dy = y2 - y1;
     const len = Math.hypot(dx, dy) || 1;
     let nx = -dy/len, ny = dx/len;
     // flip normal if it points toward the room centroid instead of away from it
-    const [ccx, ccy] = toSvg(...centroidWorld);
-    const [mx0, my0] = toSvg(...mid);
+    const mx0 = (x1+x2)/2, my0 = (y1+y2)/2;
     const towardCentroid = (ccx-mx0)*nx + (ccy-my0)*ny;
     if (towardCentroid > 0) { nx = -nx; ny = -ny; }
     const off = Math.max(w,h) * 0.045;
@@ -961,24 +991,30 @@ function renderPlan(data, showFurniture){
     parts.push('<text x="' + x + '" y="' + y + '" class="sv-muted" font-size="' + (fontSize*1.2) + '" font-family="Space Grotesk, sans-serif" text-anchor="middle" opacity="0.8">' + esc(label) + '</text>');
   }
 
-  // compass rose — its N mark points at true north when meta.json heading is
-  // known (north is at rotDeg - northB on screen); otherwise it tracks the
-  // assumed north (world -Z) and rotates together with the plan
-  const roseDeg = (((rotDeg - (northB != null ? northB : 0)) % 360) + 360) % 360;
-  const compassLabel = northB != null ? 'meta.json' : 'procjena';
-  const roseR = Math.max(w,h) * 0.065;
-  const roseCx = w - roseR*1.35, roseCy = h - roseR*1.75;
-  window.__compassState = { roseDeg, northB, cx: roseCx, cy: roseCy };
-  compassRose(parts, roseCx, roseCy, roseR, roseDeg, wallStroke*0.4, fontSize, compassLabel);
-
   svg.innerHTML = parts.join('');
-  updateDevNeedle();
+
+  // compass rose lives in the legend row (never touches the drawing); its N mark
+  // points at true north when meta.json heading is known, otherwise at the
+  // assumed north (world -Z) — rotating together with the plan in both cases
+  const roseDeg = (((rotDeg - (northB != null ? northB : 0)) % 360) + 360) % 360;
+  renderCompass(roseDeg, northB, northB != null ? 'meta.json' : 'procjena');
 
   legend.innerHTML =
     '<span><span class="sw lg-wall"></span>Ravan zid</span>' +
     '<span><span class="sw lg-slope"></span>Zid s kosinom</span>' +
     '<span><span class="sw lg-open"></span>Otvor</span>' +
     (showFurniture ? '<span><span class="sw lg-furn"></span>Namještaj</span>' : '');
+}
+
+// draws the compass rose into the fixed-size #compassSvg in the legend row
+function renderCompass(roseDeg, northB, label){
+  const c = document.getElementById('compassSvg');
+  const cx = 44, cy = 44, r = 40, stroke = 1.1, fontSize = 14;
+  window.__compassState = { roseDeg, northB, cx, cy };
+  const parts = [];
+  compassRose(parts, cx, cy, r, roseDeg, stroke, fontSize, label);
+  c.innerHTML = parts.join('');
+  updateDevNeedle();
 }
 
 // a proper compass rose: rings, degree ticks, cardinal letters and a needle;
@@ -1006,12 +1042,11 @@ function compassRose(parts, cx, cy, r, roseDeg, stroke, fontSize, label){
   g += '<polygon class="sv-muted" opacity="0.55" points="' + cx + ',' + (cy + r*0.42) + ' ' + (cx - r*0.09) + ',' + cy + ' ' + (cx + r*0.09) + ',' + cy + '"/>';
   g += '</g>';
   parts.push(g);
-  // live device-orientation needle (hidden until the device compass is enabled)
+  // live device-orientation marker: a small solid arrow (hidden until enabled)
   parts.push('<g id="devNeedle" style="display:none">' +
-    '<line class="sv-live" x1="' + cx + '" y1="' + cy + '" x2="' + cx + '" y2="' + (cy - r*0.62) + '" stroke-width="' + (stroke*1.5) + '" stroke-linecap="round"/>' +
-    '<circle class="sv-live" cx="' + cx + '" cy="' + (cy - r*0.62) + '" r="' + (stroke*2.2) + '"/>' +
+    '<polygon class="sv-live" points="' + cx + ',' + (cy - r*0.64) + ' ' + (cx - r*0.085) + ',' + (cy - r*0.34) + ' ' + (cx + r*0.085) + ',' + (cy - r*0.34) + '"/>' +
     '</g>');
-  parts.push('<text x="' + cx + '" y="' + (cy + r + fontSize*0.85) + '" class="sv-muted" font-size="' + (fontSize*0.55) + '" font-family="JetBrains Mono, monospace" text-anchor="middle" opacity="0.65">' + label + '</text>');
+  parts.push('<text x="' + cx + '" y="' + (cy + r + fontSize*0.8) + '" class="sv-muted" font-size="' + (fontSize*0.55) + '" font-family="JetBrains Mono, monospace" text-anchor="middle" opacity="0.65">' + label + '</text>');
 }
 </script>
 </body>
