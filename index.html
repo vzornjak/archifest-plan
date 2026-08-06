@@ -302,10 +302,10 @@ async function handleFile(file){
 // true-north bearing of world -Z, derived from meta.json heading combined with
 // the room's referenceOriginTransform yaw (RoomPlan realigns coordinates to the
 // walls; that transform remembers the original session orientation).
-// The -90 offset is calibrated against a physically compass-verified scan:
+// The +90 offset is calibrated against a physically compass-verified scan:
 // the app records raw CLHeading, which measures the top of the device, not the
-// camera direction — held in landscape at scan start that reads facing + 90.
-const HEADING_OFFSET_DEG = -90;
+// camera direction — held in landscape at scan start that reads facing - 90.
+const HEADING_OFFSET_DEG = 90;
 function northBearingDeg(){
   if (!window.__meta || window.__meta.headingDegrees == null) return null;
   const data = window.__lastData;
@@ -621,8 +621,8 @@ function render(data, filename){
     'Strop nije izravno skeniran (RoomPlan nema "ceiling" kategoriju) — rekonstruiran je po prostoriji iz profila zidova s kosim gornjim rubom, ' +
     'uz pretpostavku da se poprečni presjek proteže cijelom dužinom prostorije (jednostavan jednostrešni/dvostrešni krov). ' +
     'Za složenije oblike krova (koji se mijenjaju u oba smjera) ova metoda nije pouzdana. ' +
-    'Orijentacija: pravi sjever = meta.json heading − referenceOriginTransform rotacija − 90° ' +
-    '(RoomPlan interno poravnava koordinate sa zidovima, a korekcija od −90° je kalibrirana fizičkom provjerom kompasom: ' +
+    'Orijentacija: pravi sjever = meta.json heading − referenceOriginTransform rotacija + 90° ' +
+    '(RoomPlan interno poravnava koordinate sa zidovima, a korekcija od +90° je kalibrirana fizičkom provjerom kompasom: ' +
     'app bilježi sirovi CLHeading koji mjeri vrh uređaja, ne smjer kamere). ' +
     'Bez meta.json orijentacija je proizvoljna po sesiji skeniranja — strelica N tada prati pretpostavljeni sjever; ' +
     'ručnom rotacijom poravnaj tlocrt sa stvarnim stanjem.';
