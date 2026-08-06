@@ -1,0 +1,11 @@
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+*.swp
+
+# Test/sample data — don't accidentally commit real client scan data
+*.json
+!package.json
+test-data/
