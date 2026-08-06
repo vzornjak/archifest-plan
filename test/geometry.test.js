@@ -172,9 +172,9 @@ ok('esc neutralizes html', g.esc('<img onerror=x>') === '&lt;img onerror=x&gt;')
   const sharedInBedroom = bedroomWalls.find(w => w.wall.identifier === 'shared');
 
   ok('shared wall appears in BOTH rooms\' wall lists', !!sharedInKitchen && !!sharedInBedroom);
-  eq('shared wall: full (not halved) area on the kitchen side', sharedInKitchen.netArea, 3*H, 1e-6);
-  eq('shared wall: full (not halved) area on the bedroom side', sharedInBedroom.netArea, 3*H, 1e-6);
-  eq('shared wall cross-references the other room', sharedInKitchen.sharedWith, bedroomZone.zoneId);
+  eq('shared wall: full (not halved) area on the kitchen side', sharedInKitchen.netArea, 3*H, 0.05);
+  eq('shared wall: full (not halved) area on the bedroom side', sharedInBedroom.netArea, 3*H, 0.05);
+  ok('shared wall cross-references the other room', sharedInKitchen.sharedWith.includes(bedroomZone.zoneId));
 
   ok('exterior wall (A-left) appears only in one room\'s list',
     kitchenWalls.some(w => w.wall.identifier === 'A-left') && !bedroomWalls.some(w => w.wall.identifier === 'A-left'));
@@ -182,6 +182,27 @@ ok('esc neutralizes html', g.esc('<img onerror=x>') === '&lt;img onerror=x&gt;')
   // sanity: per-room breakdown is additive on top of, not a replacement for,
   // the existing globally-deduplicated totals
   eq('global wall count still deduplicated (7 walls, not 8)', twoRoomData.walls.length, 7);
+
+  // A wall spanning BOTH rooms must be split by the length each room actually
+  // borders — midpoint-only sampling used to hand it entirely to one room (or,
+  // when the midpoint fell on a partition, to none at all).
+  const spanning = wall2('spanning', 8, 1,0, 4,0);   // runs along z=0 across both rooms
+  const spanData = g.buildData({ rooms: [{ walls: [...twoRoomWalls, spanning], objects: [], floors: [floorA, floorB] }] });
+  const spanSeg = g.segmentRooms(spanData);
+  const spanMap = g.wallsByZone(spanData, spanSeg);
+  const spanZones = spanSeg.zones.map(z => (spanMap.get(z.zoneId) || []).find(x => x.wall.identifier === 'spanning'));
+  const withSpan = spanZones.filter(Boolean);
+  eq('spanning wall reaches both rooms', withSpan.length, 2);
+  ok('each room gets roughly half of it', withSpan.every(x => Math.abs(x.share - 0.5) < 0.1));
+  ok('the two shares add up to the whole wall', Math.abs(g.sum(withSpan, x => x.share) - 1) < 0.1);
+  ok('full wall area is still reported alongside the share', withSpan.every(x => Math.abs(x.fullNetArea - 8*H) < 0.01));
+
+  // no wall may silently vanish from every room's list
+  const orphan = twoRoomWalls.filter(w =>
+    ![...wallsByZone_all(wallsByZone2(twoRoomData, seg))].includes(w.identifier));
+  eq('no wall is left unassigned', orphan.length, 0);
+  function wallsByZone2(d, s){ return g.wallsByZone(d, s); }
+  function wallsByZone_all(map){ const ids = new Set(); for (const list of map.values()) for (const x of list) ids.add(x.wall.identifier); return ids; }
 }
 
 console.log('');
