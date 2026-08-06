@@ -171,9 +171,9 @@
   <div id="uploadArea">
     <div id="dropzone">
       <div class="big">Ispusti .json skeniranje ovdje</div>
-      <div class="hint">CapturedRoom JSON export (npr. iz RoomCaptureView sample app-a) — obrada isključivo lokalno u pregledniku</div>
+      <div class="hint">scan.json (CapturedRoom export) + opcionalno meta.json za pravi sjever — može oba odjednom; obrada isključivo lokalno u pregledniku</div>
     </div>
-    <input type="file" id="fileInput" accept=".json,application/json">
+    <input type="file" id="fileInput" accept=".json,application/json" multiple>
     <div id="status"></div>
   </div>
 
@@ -244,9 +244,9 @@ const furnPanel = document.getElementById('furnPanel');
 dropzone.addEventListener('click', () => fileInput.click());
 ['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('drag'); }));
 ['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('drag'); }));
-dropzone.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+dropzone.addEventListener('drop', e => { handleFiles([...e.dataTransfer.files]); });
 // reset value so picking the same (possibly corrected) file re-triggers change
-fileInput.addEventListener('change', e => { const f = e.target.files[0]; if (f) handleFile(f); e.target.value = ''; });
+fileInput.addEventListener('change', e => { handleFiles([...e.target.files]); e.target.value = ''; });
 printBtn.addEventListener('click', () => window.print());
 furnToggle.addEventListener('change', () => {
   furnPanel.classList.toggle('hidden-panel', !furnToggle.checked);
@@ -265,11 +265,23 @@ document.querySelectorAll('.rot-controls button').forEach(b => b.addEventListene
 
 function setStatus(msg, cls){ statusEl.textContent = msg; statusEl.className = cls || ''; }
 
+async function handleFiles(files){
+  for (const f of files) await handleFile(f);
+}
+
 async function handleFile(file){
   setStatus('Čitam ' + file.name + ' …');
   try {
     const text = await file.text();
     let json = JSON.parse(text);
+    // meta.json (app metadata with compass heading), not a scan
+    if (json.headingDegrees != null && !json.rooms && !json.walls) {
+      window.__meta = json;
+      alignToggle.checked = false; // default to true-north view once heading is known
+      setStatus('meta.json učitan — kompasni smjer poznat (heading ' + json.headingDegrees.toFixed(1) + '°).', 'ok');
+      if (window.__lastData) render(window.__lastData, window.__lastName);
+      return;
+    }
     // some apps export the CapturedRoom itself, without a "rooms" wrapper
     if (!json.rooms && json.walls) json = { rooms: [json] };
     if (!json.rooms || !json.rooms.length) {
@@ -277,13 +289,24 @@ async function handleFile(file){
       return;
     }
     const data = buildData(json);
-    setStatus('Učitano — ' + data.walls.length + ' zidova, ' + data.openings.length + ' otvora, ' + data.furniture.length + ' komada namještaja.', 'ok');
+    setStatus('Učitano — ' + data.walls.length + ' zidova, ' + data.openings.length + ' otvora, ' + data.furniture.length + ' komada namještaja.' + (window.__meta ? ' Pravi sjever iz meta.json.' : ''), 'ok');
     window.__lastData = data;
+    window.__lastName = file.name;
     render(data, file.name);
   } catch (err) {
     console.error(err);
     setStatus('Greška pri obradi: ' + err.message, 'err');
   }
+}
+
+// true-north bearing of world -Z, derived from meta.json heading combined with
+// the room's referenceOriginTransform yaw (RoomPlan realigns coordinates to the
+// walls; that transform remembers the original session orientation)
+function northBearingDeg(){
+  if (!window.__meta || window.__meta.headingDegrees == null) return null;
+  const data = window.__lastData;
+  const ref = data && data.refRotDeg != null ? data.refRotDeg : 0;
+  return ((window.__meta.headingDegrees - ref) % 360 + 360) % 360;
 }
 
 /* ---------- Parsing / geometry helpers ---------- */
@@ -405,6 +428,13 @@ function buildData(json){
     arr.push(el);
   };
 
+  // yaw of the reference (session) origin frame in room coordinates
+  let refRotDeg = null;
+  const refT = json.rooms[0] && json.rooms[0].referenceOriginTransform;
+  if (refT && refT.length === 16) {
+    refRotDeg = Math.atan2(refT[2], refT[0]) * 180/Math.PI;
+  }
+
   json.rooms.forEach((room, roomIdx) => {
     (room.walls || []).forEach(w => push(walls, annotate(w, 'wall', roomIdx)));
     (room.doors || []).forEach(o => push(openings, annotate(o, 'door', roomIdx)));
@@ -415,7 +445,7 @@ function buildData(json){
     (room.sections || []).forEach(s => sections.push(Object.assign({ roomIdx }, s)));
   });
 
-  return { walls, openings, furniture, floors, sections, roomCount: json.rooms.length };
+  return { walls, openings, furniture, floors, sections, roomCount: json.rooms.length, refRotDeg };
 }
 
 const CONF_LEVELS = ['high','medium','low'];
@@ -553,17 +583,25 @@ function render(data, filename){
   const ceiling = reconstructCeiling(data);
   const ceilingArea = ceiling ? ceiling.ceilingArea : null;
 
+  const northB = northBearingDeg();
   document.getElementById('metaStrip').innerHTML =
-    metaChip('Zidova', data.walls.length) + metaChip('Otvora', data.openings.length) + metaChip('Namještaja', data.furniture.length) + metaChip('Prostorija', data.roomCount);
+    metaChip('Zidova', data.walls.length) + metaChip('Otvora', data.openings.length) + metaChip('Namještaja', data.furniture.length) + metaChip('Prostorija', data.roomCount) +
+    (northB != null ? metaChip('Sjever', 'meta ✓') : '');
 
-  renderStats({
+  const statsObj = {
     'Površina poda': fmtArea(floorArea),
     'Strop (rekonstruirano)': fmtArea(ceilingArea),
     'Zidovi (bruto)': fmtArea(grossWallArea),
     'Zidovi (neto)': fmtArea(netWallArea),
     'Otvori ukupno': fmtArea(openingArea),
     'Strop − pod': (ceilingArea != null && floorArea ? (ceilingArea-floorArea >= 0 ? '+' : '') + fmtArea(ceilingArea-floorArea) : '—'),
-  });
+  };
+  // app's own numbers from meta.json as a cross-check (its wallArea is net: gross minus all openings)
+  if (window.__meta) {
+    if (window.__meta.floorAreaSquareMetres != null) statsObj['Pod (app meta)'] = fmtArea(window.__meta.floorAreaSquareMetres);
+    if (window.__meta.wallAreaSquareMetres != null) statsObj['Zidovi neto (app meta)'] = fmtArea(window.__meta.wallAreaSquareMetres);
+  }
+  renderStats(statsObj);
 
   renderZones(data);
   renderWallsTable(data);
@@ -579,8 +617,9 @@ function render(data, filename){
     'Strop nije izravno skeniran (RoomPlan nema "ceiling" kategoriju) — rekonstruiran je po prostoriji iz profila zidova s kosim gornjim rubom, ' +
     'uz pretpostavku da se poprečni presjek proteže cijelom dužinom prostorije (jednostavan jednostrešni/dvostrešni krov). ' +
     'Za složenije oblike krova (koji se mijenjaju u oba smjera) ova metoda nije pouzdana. ' +
-    'Orijentacija: RoomPlan poravnava koordinate s pravim sjeverom samo ako je scanner app koristio kompas (gravityAndHeading) — ' +
-    'inače je orijentacija proizvoljna po sesiji skeniranja. Strelica N prati pretpostavljeni sjever i rotira se zajedno s tlocrtom; ' +
+    'Orijentacija: pravi sjever se računa iz meta.json headinga kombiniranog s referenceOriginTransform rotacijom iz scan.json ' +
+    '(RoomPlan interno poravnava koordinate sa zidovima; taj transform pamti izvornu orijentaciju sesije). ' +
+    'Bez meta.json orijentacija je proizvoljna po sesiji skeniranja — strelica N tada prati pretpostavljeni sjever; ' +
     'ručnom rotacijom poravnaj tlocrt sa stvarnim stanjem.';
 }
 
@@ -698,11 +737,14 @@ function renderPlan(data, showFurniture){
   // therefore auto-aligns to the longest wall by default, offers manual rotation,
   // and the compass rotates together with the plan (it tracks the assumed north
   // direction, it does not claim true north).
+  const northB = northBearingDeg(); // bearing of world -Z, or null without meta.json
   let rotDeg = planRot.extraDeg;
   if (alignToggle.checked && data.walls.length) {
     const longest = data.walls.reduce((a,b) => (b.dimensions[0] > a.dimensions[0] ? b : a));
     const ls = wallSegment(longest);
     rotDeg -= Math.atan2(ls.p2[1]-ls.p1[1], ls.p2[0]-ls.p1[0]) * 180/Math.PI;
+  } else if (northB != null) {
+    rotDeg += northB; // true north up
   }
   const th = rotDeg * Math.PI/180, cosT = Math.cos(th), sinT = Math.sin(th);
   const projX = (x, z) => x*cosT - z*sinT;
@@ -798,9 +840,11 @@ function renderPlan(data, showFurniture){
     parts.push('<text x="' + x + '" y="' + y + '" class="sv-muted" font-size="' + (fontSize*1.2) + '" font-family="Space Grotesk, sans-serif" text-anchor="middle" opacity="0.8">' + esc(label) + '</text>');
   }
 
-  // compass — at 0° rotation the assumed north (world -Z) maps to screen up;
-  // the arrow rotates with the plan so it keeps pointing at the same world direction
-  const compassRotationDeg = ((rotDeg % 360) + 360) % 360;
+  // compass — points at true north when meta.json heading is known (north is at
+  // bearing 0, i.e. rotDeg - northB on screen); otherwise it tracks the assumed
+  // north (world -Z) and rotates together with the plan
+  const compassRotationDeg = (((rotDeg - (northB != null ? northB : 0)) % 360) + 360) % 360;
+  const compassLabel = northB != null ? 'meta.json' : 'procjena';
 
   const cx = w - Math.max(w,h)*0.14, cy = Math.max(w,h)*0.10, cr = Math.max(w,h)*0.04;
   parts.push('<g transform="rotate(' + compassRotationDeg.toFixed(1) + ' ' + cx + ' ' + cy + ')">' +
@@ -809,7 +853,7 @@ function renderPlan(data, showFurniture){
     '<polygon points="' + cx + ',' + (cy-cr) + ' ' + (cx-cr*0.28) + ',' + (cy-cr*0.55) + ' ' + (cx+cr*0.28) + ',' + (cy-cr*0.55) + '" class="sv-muted"/></g>' +
     '<text x="' + cx + '" y="' + (cy-cr-fontSize*0.4) + '" class="sv-muted" font-size="' + (fontSize*0.9) + '" font-family="JetBrains Mono, monospace" text-anchor="middle">N</text>' +
     '</g>');
-  parts.push('<text x="' + cx + '" y="' + (cy+cr+fontSize*1.1) + '" class="sv-muted" font-size="' + (fontSize*0.55) + '" font-family="JetBrains Mono, monospace" text-anchor="middle" opacity="0.65">procjena</text>');
+  parts.push('<text x="' + cx + '" y="' + (cy+cr+fontSize*1.1) + '" class="sv-muted" font-size="' + (fontSize*0.55) + '" font-family="JetBrains Mono, monospace" text-anchor="middle" opacity="0.65">' + compassLabel + '</text>');
 
   svg.innerHTML = parts.join('');
 
