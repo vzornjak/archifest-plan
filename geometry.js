@@ -531,20 +531,23 @@ function reconstructCeiling(data){
 // true-north bearing of world -Z, derived from meta.json heading combined with
 // the room's referenceOriginTransform yaw (RoomPlan realigns coordinates to the
 // walls; that transform remembers the original session orientation).
-// The -90 offset is calibrated against a physically compass-verified scan:
-// the app records raw CLHeading, which measures the top of the device, not the
-// camera direction — held in landscape at scan start that reads facing + 90.
+// The +90 offset is calibrated against a physically verified scan: the app
+// records raw CLHeading, which measures the top of the device, not the camera
+// direction — held in landscape at scan start that reads facing - 90.
 //
-// This was briefly flipped to +90 based on an early physical check, but that
-// check was made while the live needle itself was still broken (it used
-// webkitCompassHeading with an inverted rotation sense until that was fixed
-// separately), so it was judged against a wrong display. Re-measured cleanly
-// afterwards: standing in the room and physically rotating until the plan
-// visually matched it, the needle read 180deg instead of the 0deg it must show
-// when aligned — i.e. north was inverted, putting it back at -90. The rose
-// angle is identical either way (the wall-alignment step absorbs it); what
-// actually differs is the plan drawing, which comes out rotated 180deg.
-const HEADING_OFFSET_DEG = -90;
+// History worth keeping, because this constant was flipped to -90 once and it
+// was the wrong call. A reading of "needle at 180deg when the plan looked
+// aligned" was taken in PORTRAIT, where the real fault was the portrait
+// orientation pick (fixed separately by deriving portrait as a fixed quarter
+// turn from the landscape base). Applying that portrait-only observation to
+// this global constant flipped LANDSCAPE too — which had always been correct.
+//
+// Note the rose angle comes out identical for either sign (the wall-alignment
+// step absorbs it), so the rose is not the thing to check: what differs is the
+// plan DRAWING, which rotates a full 180deg. Verify by facing true north with
+// the plan in its automatic (landscape) orientation — the drawing must match
+// the room and the live needle must sit at the top of the rose.
+const HEADING_OFFSET_DEG = 90;
 function northBearingFrom(headingDegrees, refRotDeg){
   if (headingDegrees == null) return null;
   return ((headingDegrees - (refRotDeg || 0) + HEADING_OFFSET_DEG) % 360 + 360) % 360;

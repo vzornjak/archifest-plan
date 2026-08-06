@@ -84,9 +84,9 @@ ok('flat ceiling flagged', flatCeil.flat);
 eq('flat ceiling = floor area', flatCeil.ceilingArea, 24, 1e-9);
 
 // --- north bearing ---
-// offset is -90, physically re-calibrated (see HEADING_OFFSET_DEG in geometry.js)
-eq('north = heading - refRot - 90', g.northBearingFrom(90.52, 89.56), ((90.52 - 89.56 - 90) % 360 + 360) % 360, 1e-9);
-eq('north wraps into [0,360)', g.northBearingFrom(10, 200), ((10 - 200 - 90) % 360 + 360) % 360, 1e-9);
+// offset is +90 (see HEADING_OFFSET_DEG in geometry.js for why it is not -90)
+eq('north = heading - refRot + 90', g.northBearingFrom(90.52, 89.56), ((90.52 - 89.56 + 90) % 360 + 360) % 360, 1e-9);
+eq('north wraps into [0,360)', g.northBearingFrom(10, 200), ((10 - 200 + 90) % 360 + 360) % 360, 1e-9);
 eq('north null without heading', g.northBearingFrom(null, 45), null);
 
 // --- plan orientation (the code every past orientation bug lived in) ---
@@ -95,8 +95,8 @@ eq('north null without heading', g.northBearingFrom(null, 45), null);
   const roseOf = (o, northB) => norm(o.rotDeg - northB);
   const offTop = r => Math.min(r, 360 - r);
 
-  // reference-scan values: walls ~92° off north, north bearing 270.96
-  const REF = { wallAngle: 92.09, northB: 270.96 };
+  // reference-scan values: walls ~92° off north, north bearing 90.96 (offset +90)
+  const REF = { wallAngle: 92.09, northB: 90.96 };
 
   const auto = g.planOrientation({ ...REF, override: null, panelLandscape: false });
   ok('auto: north-up wins over panel shape (landscape)', auto.landscape === true && auto.auto === true);
@@ -106,6 +106,8 @@ eq('north null without heading', g.northBearingFrom(null, 45), null);
   ok('portrait override respected', portrait.landscape === false && portrait.auto === false);
   eq('portrait is exactly a -90° quarter turn from the base', norm(portrait.rotDeg - auto.rotDeg), 270, 1e-9);
   eq('portrait rose lands at ~267 (not the 180°-flipped 87)', roseOf(portrait, REF.northB), 266.95, 0.02);
+  // the landscape drawing physically confirmed as correct in the room
+  eq('landscape draws at rotDeg 87.91 (the verified one, not 180° off)', auto.rotDeg, 87.91, 0.02);
 
   const landOverride = g.planOrientation({ ...REF, override: 'landscape', panelLandscape: false });
   eq('landscape override equals the auto base here', landOverride.rotDeg, auto.rotDeg, 1e-9);
