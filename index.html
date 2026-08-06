@@ -101,6 +101,10 @@
 
   #furnPanel.hidden-panel{ display:none; }
 
+  .rot-controls{ display:flex; gap:4px; }
+  .rot-controls button{ font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--ink-dim); background:transparent; border:1px solid var(--ink-faint); border-radius:var(--radius); padding:2px 7px; cursor:pointer; }
+  .rot-controls button:hover{ border-color:var(--line); color:var(--line-bright); }
+
   /* SVG plan colors via classes so print can restyle them (inline attrs can't be overridden) */
   .sv-grid{ stroke:#16324A; }
   .sv-floor{ fill:rgba(191,227,255,0.02); }
@@ -128,7 +132,7 @@
     }
     body{ background:#fff; color:#111; padding:0; }
     .sheet{ border-color:#111; }
-    #dropzone, #printBtn, #status{ display:none !important; }
+    #dropzone, #printBtn, #status, .toggle-wrap, .rot-controls{ display:none !important; }
     .panel{ background:#fff; border-color:#999; break-inside:avoid; }
     #plan-svg{ background:#fff; }
     .sv-grid{ stroke:#e5e5e5; }
@@ -178,6 +182,13 @@
       <div id="plan-wrap" class="panel" style="margin-bottom:0;">
         <h2>Tlocrt
           <span class="toggle-wrap"><label class="switch"><input type="checkbox" id="furnToggle"><span class="slider"></span></label>Namještaj</span>
+          <span class="toggle-wrap"><label class="switch"><input type="checkbox" id="alignToggle" checked><span class="slider"></span></label>Poravnaj sa zidom</span>
+          <span class="rot-controls">
+            <button type="button" data-rot="-90" title="Rotiraj 90° ulijevo">&#10226;90</button>
+            <button type="button" data-rot="-5" title="Rotiraj 5° ulijevo">&minus;5</button>
+            <button type="button" data-rot="5" title="Rotiraj 5° udesno">+5</button>
+            <button type="button" data-rot="90" title="Rotiraj 90° udesno">&#10227;90</button>
+          </span>
         </h2>
         <svg id="plan-svg" viewBox="0 0 100 100"></svg>
         <div class="legend" id="legend"></div>
@@ -241,6 +252,16 @@ furnToggle.addEventListener('change', () => {
   furnPanel.classList.toggle('hidden-panel', !furnToggle.checked);
   if (window.__lastData) renderPlan(window.__lastData, furnToggle.checked);
 });
+
+const alignToggle = document.getElementById('alignToggle');
+const planRot = { extraDeg: 0 };
+alignToggle.addEventListener('change', () => {
+  if (window.__lastData) renderPlan(window.__lastData, furnToggle.checked);
+});
+document.querySelectorAll('.rot-controls button').forEach(b => b.addEventListener('click', () => {
+  planRot.extraDeg = (planRot.extraDeg + Number(b.dataset.rot)) % 360;
+  if (window.__lastData) renderPlan(window.__lastData, furnToggle.checked);
+}));
 
 function setStatus(msg, cls){ statusEl.textContent = msg; statusEl.className = cls || ''; }
 
@@ -557,7 +578,10 @@ function render(data, filename){
     'Neto površina zidova koristi parentIdentifier za povezivanje otvora s pravim zidom. ' +
     'Strop nije izravno skeniran (RoomPlan nema "ceiling" kategoriju) — rekonstruiran je po prostoriji iz profila zidova s kosim gornjim rubom, ' +
     'uz pretpostavku da se poprečni presjek proteže cijelom dužinom prostorije (jednostavan jednostrešni/dvostrešni krov). ' +
-    'Za složenije oblike krova (koji se mijenjaju u oba smjera) ova metoda nije pouzdana.';
+    'Za složenije oblike krova (koji se mijenjaju u oba smjera) ova metoda nije pouzdana. ' +
+    'Orijentacija: RoomPlan poravnava koordinate s pravim sjeverom samo ako je scanner app koristio kompas (gravityAndHeading) — ' +
+    'inače je orijentacija proizvoljna po sesiji skeniranja. Strelica N prati pretpostavljeni sjever i rotira se zajedno s tlocrtom; ' +
+    'ručnom rotacijom poravnaj tlocrt sa stvarnim stanjem.';
 }
 
 function metaChip(label, value){ return '<div>' + label + '<span>' + value + '</span></div>'; }
@@ -667,17 +691,22 @@ function renderPlan(data, showFurniture){
   const segs = data.walls.map(w => wallSegment(w));
   if (!segs.length) { svg.innerHTML = '<text x="50" y="50" class="sv-muted" font-size="4">Nema zidova za crtanje</text>'; return; }
 
-  // Orientation: standard architectural floor plan convention — viewed from above,
-  // north is up and east is right.
-  // World convention (empirically confirmed): +X = East, -Z = North.
-  // Screen convention: +x = right, +y = DOWN.
-  // Therefore the correct top-down mapping is simply:
-  //   screen_x =  world_x   (east -> right)
-  //   screen_y =  world_z   (north is -Z, and screen y grows downward, so -Z -> up)
-  // No rotation and no axis flip is needed; a y-flip here would mirror the plan
-  // (equivalent to viewing it from underneath the floor).
-  const projX = (x, z) => x;
-  const projY = (x, z) => z;
+  // Base top-down mapping (viewed from above): screen_x = world_x, screen_y = world_z.
+  // IMPORTANT: ARKit/RoomPlan world yaw is session-dependent — world -Z is true
+  // north ONLY when the scanner app used gravityAndHeading world alignment.
+  // Otherwise -Z points wherever the phone faced when the scan started. The plan
+  // therefore auto-aligns to the longest wall by default, offers manual rotation,
+  // and the compass rotates together with the plan (it tracks the assumed north
+  // direction, it does not claim true north).
+  let rotDeg = planRot.extraDeg;
+  if (alignToggle.checked && data.walls.length) {
+    const longest = data.walls.reduce((a,b) => (b.dimensions[0] > a.dimensions[0] ? b : a));
+    const ls = wallSegment(longest);
+    rotDeg -= Math.atan2(ls.p2[1]-ls.p1[1], ls.p2[0]-ls.p1[0]) * 180/Math.PI;
+  }
+  const th = rotDeg * Math.PI/180, cosT = Math.cos(th), sinT = Math.sin(th);
+  const projX = (x, z) => x*cosT - z*sinT;
+  const projY = (x, z) => x*sinT + z*cosT;
 
   const projected = segs.map(s => ({
     p1: [projX(...s.p1), projY(...s.p1)],
@@ -769,9 +798,9 @@ function renderPlan(data, showFurniture){
     parts.push('<text x="' + x + '" y="' + y + '" class="sv-muted" font-size="' + (fontSize*1.2) + '" font-family="Space Grotesk, sans-serif" text-anchor="middle" opacity="0.8">' + esc(label) + '</text>');
   }
 
-  // compass — with the direct top-down projection above (no rotation, no flip),
-  // world north (-Z) always maps to screen up, so the arrow points straight up.
-  const compassRotationDeg = 0;
+  // compass — at 0° rotation the assumed north (world -Z) maps to screen up;
+  // the arrow rotates with the plan so it keeps pointing at the same world direction
+  const compassRotationDeg = ((rotDeg % 360) + 360) % 360;
 
   const cx = w - Math.max(w,h)*0.14, cy = Math.max(w,h)*0.10, cr = Math.max(w,h)*0.04;
   parts.push('<g transform="rotate(' + compassRotationDeg.toFixed(1) + ' ' + cx + ' ' + cy + ')">' +
