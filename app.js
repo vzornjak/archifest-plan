@@ -73,7 +73,7 @@ function stopDevCompass(){
   const n = document.getElementById('devNeedle');
   if (n) n.style.display = 'none';
   const dbg = document.getElementById('devDebug');
-  if (dbg) dbg.textContent = '';
+  if (dbg) { dbg.textContent = ''; dbg.style.display = 'none'; }
 }
 function onScreenRotate(){ requestAnimationFrame(updateDevNeedle); }
 
@@ -108,11 +108,14 @@ function updateDevNeedle(){
   const dbg = document.getElementById('devDebug');
   const st = window.__compassState;
   if (!n || !devCompass.on || devCompass.heading == null) return;
-  if (!st || st.northB == null) { n.style.display = 'none'; return; }  // plan north unknown
+  if (!st || st.northB == null) { n.style.display = 'none'; if (dbg) dbg.style.display = 'none'; return; }  // plan north unknown
   const ang = ((st.roseDeg + devCompass.heading) % 360 + 360) % 360;
   n.style.display = '';
   n.setAttribute('transform', 'rotate(' + ang + ' ' + st.cx + ' ' + st.cy + ')');
-  if (dbg) dbg.textContent = 'raw ' + devCompass.rawHeading.toFixed(0) + '° · ekran ' + devCompass.screenAngle.toFixed(0) + '° · ruža ' + ang.toFixed(0) + '°';
+  if (dbg) {
+    dbg.style.display = '';
+    dbg.textContent = 'raw ' + devCompass.rawHeading.toFixed(0) + '° · ekran ' + devCompass.screenAngle.toFixed(0) + '° · ruža ' + ang.toFixed(0) + '°';
+  }
 }
 
 function setStatus(msg, cls){ statusEl.textContent = msg; statusEl.className = cls || ''; }
@@ -640,7 +643,4 @@ function compassRose(parts, cx, cy, r, roseDeg, stroke, fontSize, label){
     '<polygon class="sv-live" points="' + cx + ',' + (cy - r*0.64) + ' ' + (cx - r*0.085) + ',' + (cy - r*0.34) + ' ' + (cx + r*0.085) + ',' + (cy - r*0.34) + '"/>' +
     '</g>');
   parts.push('<text x="' + cx + '" y="' + (cy + r + fontSize*0.8) + '" class="sv-muted" font-size="' + (fontSize*0.55) + '" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" text-anchor="middle" opacity="0.65">' + label + '</text>');
-  // diagnostic line for live-compass calibration — empty (invisible) unless the
-  // device compass is on; not sent anywhere, purely a local readout
-  parts.push('<text id="devDebug" x="' + cx + '" y="' + (cy + r + fontSize*1.7) + '" class="sv-muted" font-size="' + (fontSize*0.42) + '" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" text-anchor="middle" opacity="0.55"></text>');
 }
