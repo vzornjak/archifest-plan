@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skica — RoomPlan JSON Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink: #E7F3FF; --ink-dim: #7FA0C4; --ink-faint: #3E5A78;
+    --bg: #0A1929; --bg-panel: #0E2137; --bg-panel2: #0C1C2E;
+    --grid-line: #16324A; --rule: #1C3A54;
+    --line: #BFE3FF; --line-bright: #EAF6FF;
+    --amber: #FFB067; --mint: #7FE7C4; --rose: #FF9A9A;
+    --radius: 3px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{ background:var(--bg); color:var(--ink); font-family:'Space Grotesk',sans-serif; min-height:100vh; padding:18px; }
+  .sheet{ max-width:1440px; margin:0 auto; border:1px solid var(--ink-faint); position:relative; padding:22px; }
+  .corner-tl,.corner-bl,.corner-tr,.corner-br{ position:absolute; width:14px; height:14px; border:1px solid var(--line); }
+  .corner-tl{ top:-1px; left:-1px; border-right:none; border-bottom:none; }
+  .corner-bl{ bottom:-1px; left:-1px; border-right:none; border-top:none; }
+  .corner-tr{ top:-1px; right:-1px; border-left:none; border-bottom:none; }
+  .corner-br{ bottom:-1px; right:-1px; border-left:none; border-top:none; }
+
+  .titleblock{ display:flex; justify-content:space-between; align-items:flex-end; border-bottom:1px solid var(--rule); padding-bottom:16px; margin-bottom:20px; flex-wrap:wrap; gap:14px; }
+  .titleblock h1{ font-size:22px; font-weight:700; letter-spacing:0.02em; margin:0 0 4px 0; }
+  .titleblock .sub{ font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--ink-dim); letter-spacing:0.04em; text-transform:uppercase; }
+  .meta-strip{ display:flex; gap:22px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--ink-dim); flex-wrap:wrap; }
+  .meta-strip div span{ display:block; color:var(--line-bright); font-size:13px; margin-top:2px; }
+
+  #dropzone{ border:1.5px dashed var(--ink-faint); border-radius:var(--radius); padding:48px 20px; text-align:center; cursor:pointer; transition:border-color .15s, background .15s; font-family:'JetBrains Mono',monospace; color:var(--ink-dim); }
+  #dropzone:hover, #dropzone.drag{ border-color:var(--line); background:rgba(191,227,255,0.03); color:var(--ink); }
+  #dropzone .big{ font-family:'Space Grotesk',sans-serif; font-size:17px; color:var(--ink); margin-bottom:6px;}
+  #dropzone .hint{ font-size:11px; }
+  #fileInput{ display:none; }
+  #status{ font-family:'JetBrains Mono',monospace; font-size:12px; margin-top:10px; min-height:16px; color:var(--ink-dim); }
+  #status.err{ color:var(--rose); }
+  #status.ok{ color:var(--mint); }
+
+  #report{ display:none; }
+  #report.show{ display:block; }
+
+  .layout{ display:grid; grid-template-columns: 1.35fr 1fr; gap:20px; align-items:start; }
+  @media (max-width: 920px){
+    .layout{ grid-template-columns: 1fr; }
+  }
+
+  .panel{ background:var(--bg-panel); border:1px solid var(--rule); border-radius:var(--radius); padding:16px 18px; margin-bottom:16px; }
+  .panel h2{ font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-dim); margin:0 0 12px 0; font-weight:600; display:flex; align-items:center; gap:8px; }
+  .panel h2::after{ content:''; flex:1; height:1px; background:var(--rule); }
+  .panel h2 .toggle-wrap{ font-family:'JetBrains Mono',monospace; font-size:10px; text-transform:none; letter-spacing:0; display:flex; align-items:center; gap:6px; }
+
+  #plan-wrap{ position:static; }
+  #plan-svg{ max-width:100%; max-height:70vh; width:auto; height:auto; display:block; margin:0 auto; background:var(--bg-panel2); border-radius:var(--radius); }
+  .legend{ display:flex; gap:16px; flex-wrap:wrap; margin-top:10px; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ink-dim); }
+  .legend .sw{ display:inline-block; width:12px; height:2px; margin-right:5px; vertical-align:middle; }
+
+  .stats{ display:grid; grid-template-columns:repeat(2,1fr); gap:1px; background:var(--rule); border:1px solid var(--rule); border-radius:var(--radius); overflow:hidden; }
+  .stat{ background:var(--bg-panel); padding:11px 13px; }
+  .stat .label{ font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--ink-dim); text-transform:uppercase; letter-spacing:0.05em;}
+  .stat .value{ font-family:'JetBrains Mono',monospace; font-size:19px; color:var(--line-bright); margin-top:3px; font-weight:600;}
+  .stat.hl .value{ color:var(--amber); }
+
+  table{ width:100%; border-collapse:collapse; font-family:'JetBrains Mono',monospace; font-size:11.5px; }
+  th{ text-align:left; color:var(--ink-dim); font-weight:600; text-transform:uppercase; font-size:9.5px; letter-spacing:0.05em; padding:6px 8px; border-bottom:1px solid var(--rule); }
+  td{ padding:6px 8px; border-bottom:1px solid var(--bg-panel2); color:var(--ink); vertical-align:middle; }
+  tr:last-child td{ border-bottom:none; }
+
+  .badge{ display:inline-block; padding:1px 6px; border-radius:2px; font-size:9.5px; letter-spacing:0.02em; white-space:nowrap; }
+  .b-wall{ background:rgba(191,227,255,0.12); color:var(--line-bright); }
+  .b-open{ background:rgba(255,176,103,0.14); color:var(--amber); }
+  .b-furn{ background:rgba(127,231,196,0.12); color:var(--mint); }
+  .b-slope{ background:rgba(255,176,103,0.18); color:var(--amber); }
+  .b-conf-high{ background:rgba(127,231,196,0.12); color:var(--mint); }
+  .b-conf-medium{ background:rgba(255,176,103,0.14); color:var(--amber); }
+  .b-conf-low{ background:rgba(255,154,154,0.14); color:var(--rose); }
+
+  .zone-block{ margin-bottom:12px; }
+  .zone-title{ font-weight:600; font-size:13.5px; }
+  .zone-sub{ font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ink-dim); }
+
+  .switch{ position:relative; width:30px; height:16px; }
+  .switch input{ opacity:0; width:0; height:0; }
+  .switch .slider{ position:absolute; inset:0; background:var(--ink-faint); border-radius:16px; cursor:pointer; transition:.15s; }
+  .switch .slider::before{ content:''; position:absolute; width:12px; height:12px; left:2px; top:2px; background:var(--bg); border-radius:50%; transition:.15s; }
+  .switch input:checked + .slider{ background:var(--mint); }
+  .switch input:checked + .slider::before{ transform:translateX(14px); }
+
+  .profile-mini{ display:inline-block; vertical-align:middle; margin-left:6px; }
+
+  .assumption{ font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ink-dim); background:var(--bg-panel2); border-left:2px solid var(--amber); padding:8px 10px; margin-top:10px; line-height:1.6; }
+
+  .footnote{ font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ink-faint); margin-top:6px; line-height:1.6; border-top:1px solid var(--rule); padding-top:12px;}
+
+  #printBtn{ font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--ink); background:transparent; border:1px solid var(--ink-faint); border-radius:var(--radius); padding:7px 12px; cursor:pointer; letter-spacing:0.04em; }
+  #printBtn:hover{ border-color:var(--line); color:var(--line-bright); }
+
+  #furnPanel.hidden-panel{ display:none; }
+
+  @media print{
+    body{ background:#fff; color:#111; padding:0; }
+    .sheet{ border-color:#111; }
+    #dropzone, #printBtn, #status{ display:none !important; }
+    .panel{ background:#fff; border-color:#999; break-inside:avoid; }
+    #plan-svg{ background:#fff; }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <span class="corner-tl"></span><span class="corner-bl"></span><span class="corner-tr"></span><span class="corner-br"></span>
+
+  <div class="titleblock">
+    <div>
+      <h1 id="projTitle">RoomPlan JSON Report</h1>
+      <div class="sub" id="projSub">Čeka se .json datoteka (CapturedRoom export)</div>
+    </div>
+    <div style="display:flex; align-items:center; gap:14px;">
+      <div class="meta-strip" id="metaStrip"></div>
+      <button id="printBtn" style="display:none;">Ispis / PDF</button>
+    </div>
+  </div>
+
+  <div id="uploadArea">
+    <div id="dropzone">
+      <div class="big">Ispusti .json skeniranje ovdje</div>
+      <div class="hint">CapturedRoom JSON export (npr. iz RoomCaptureView sample app-a) — obrada isključivo lokalno u pregledniku</div>
+    </div>
+    <input type="file" id="fileInput" accept=".json,application/json">
+    <div id="status"></div>
+  </div>
+
+  <div id="report">
+    <div class="layout">
+      <div id="plan-wrap" class="panel" style="margin-bottom:0;">
+        <h2>Tlocrt
+          <span class="toggle-wrap"><label class="switch"><input type="checkbox" id="furnToggle"><span class="slider"></span></label>Namještaj</span>
+        </h2>
+        <svg id="plan-svg" viewBox="0 0 100 100"></svg>
+        <div class="legend" id="legend"></div>
+      </div>
+
+      <div>
+        <div class="panel">
+          <h2>Pregled</h2>
+          <div class="stats" id="statsGrid"></div>
+        </div>
+
+        <div class="panel" id="zonesPanel">
+          <h2>Zone / Prostorije</h2>
+          <div id="zonesContent"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Zidovi</h2>
+          <table id="wallsTable"><thead><tr><th>Element</th><th>Dim (m)</th><th>Bruto</th><th>Neto*</th><th>Pouzd.</th></tr></thead><tbody></tbody></table>
+          <div class="assumption">* Neto = bruto površina umanjena za otvore povezane s tim zidom preko <code>parentIdentifier</code>-a iz izvornih podataka — ne po blizini, nego po stvarnoj vezi otvor↔zid.</div>
+        </div>
+
+        <div class="panel" id="ceilingPanel">
+          <h2>Rekonstrukcija stropa</h2>
+          <div id="ceilingContent"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Otvori (vrata / prozori / openings)</h2>
+          <table id="openingsTable"><thead><tr><th>Element</th><th>Zid</th><th>Dim (m)</th><th>Površina</th><th>Pouzd.</th></tr></thead><tbody></tbody></table>
+        </div>
+
+        <div class="panel" id="furnPanel">
+          <h2>Namještaj / Uređaji</h2>
+          <table id="furnitureTable"><thead><tr><th>Kategorija</th><th>Dim (Š×V×D)</th><th>Pouzd.</th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <div class="footnote" id="footnote"></div>
+  </div>
+</div>
+
+<script>
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const statusEl = document.getElementById('status');
+const reportEl = document.getElementById('report');
+const printBtn = document.getElementById('printBtn');
+const furnToggle = document.getElementById('furnToggle');
+const furnPanel = document.getElementById('furnPanel');
+
+dropzone.addEventListener('click', () => fileInput.click());
+['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('drag'); }));
+dropzone.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+fileInput.addEventListener('change', e => { const f = e.target.files[0]; if (f) handleFile(f); });
+printBtn.addEventListener('click', () => window.print());
+furnToggle.addEventListener('change', () => {
+  furnPanel.classList.toggle('hidden-panel', !furnToggle.checked);
+  if (window.__lastData) renderPlan(window.__lastData, furnToggle.checked);
+});
+
+function setStatus(msg, cls){ statusEl.textContent = msg; statusEl.className = cls || ''; }
+
+async function handleFile(file){
+  setStatus('Čitam ' + file.name + ' …');
+  try {
+    const text = await file.text();
+    const json = JSON.parse(text);
+    if (!json.rooms || !json.rooms.length) {
+      setStatus('JSON ne sadrži "rooms" polje — ovo ne izgleda kao CapturedRoom export.', 'err');
+      return;
+    }
+    const data = buildData(json);
+    setStatus('Učitano — ' + data.walls.length + ' zidova, ' + data.openings.length + ' otvora, ' + data.furniture.length + ' komada namještaja.', 'ok');
+    window.__lastData = data;
+    render(data, file.name);
+  } catch (err) {
+    console.error(err);
+    setStatus('Greška pri obradi: ' + err.message, 'err');
+  }
+}
+
+/* ---------- Parsing / geometry helpers ---------- */
+
+function unwrap(obj){
+  if (!obj) return { name: null, detail: null };
+  const key = Object.keys(obj)[0];
+  return { name: key, detail: obj[key] };
+}
+
+function shoelace2D(pts){
+  const n = pts.length;
+  let area = 0;
+  for (let i=0;i<n;i++){
+    const [x1,y1] = pts[i];
+    const [x2,y2] = pts[(i+1)%n];
+    area += x1*y2 - x2*y1;
+  }
+  return Math.abs(area)/2;
+}
+
+function reshapeMatrix(flat){
+  return [flat.slice(0,4), flat.slice(4,8), flat.slice(8,12), flat.slice(12,16)];
+}
+
+function localToWorld(lx, ly, lz, rows){
+  const [r0,r1,r2,r3] = rows;
+  return [
+    lx*r0[0] + ly*r1[0] + lz*r2[0] + r3[0],
+    lx*r0[1] + ly*r1[1] + lz*r2[1] + r3[1],
+    lx*r0[2] + ly*r1[2] + lz*r2[2] + r3[2],
+  ];
+}
+
+function computeArea(el){
+  if (el.polygonCorners && el.polygonCorners.length > 0) {
+    return shoelace2D(el.polygonCorners.map(p => [p[0], p[1]]));
+  }
+  return el.dimensions[0] * el.dimensions[1];
+}
+
+function topProfile(el){
+  const ys = el.polygonCorners.map(p => p[1]);
+  const minY = Math.min(...ys);
+  const pts = el.polygonCorners.filter(p => p[1] > minY + 0.01).map(p => [p[0], p[1]]);
+  pts.sort((a,b) => a[0]-b[0]);
+  return { minY, maxY: Math.max(...ys), pts };
+}
+
+function profileLength(pts){
+  let len = 0;
+  for (let i=0;i<pts.length-1;i++){
+    const [x1,y1] = pts[i], [x2,y2] = pts[i+1];
+    len += Math.hypot(x2-x1, y2-y1);
+  }
+  return len;
+}
+
+function wallSegment(w){
+  const rows = reshapeMatrix(w.transform);
+  const half = w.dimensions[0]/2;
+  const p1 = localToWorld(-half, 0, 0, rows);
+  const p2 = localToWorld(half, 0, 0, rows);
+  return { p1: [p1[0], p1[2]], p2: [p2[0], p2[2]], len: w.dimensions[0] };
+}
+
+function elCenter2D(el){
+  const rows = reshapeMatrix(el.transform);
+  const c = localToWorld(0,0,0,rows);
+  return [c[0], c[2]];
+}
+
+function elDir2D(el, axisRowIndex){
+  const rows = reshapeMatrix(el.transform);
+  const v = [rows[axisRowIndex][0], rows[axisRowIndex][2]];
+  const len = Math.hypot(v[0], v[1]) || 1;
+  return [v[0]/len, v[1]/len];
+}
+
+function furnitureRect(o){
+  const rows = reshapeMatrix(o.transform);
+  const hw = o.dimensions[0]/2, hd = o.dimensions[2]/2;
+  const corners = [
+    localToWorld(-hw,0,-hd,rows), localToWorld(hw,0,-hd,rows),
+    localToWorld(hw,0,hd,rows), localToWorld(-hw,0,hd,rows)
+  ].map(p => [p[0], p[2]]);
+  return corners;
+}
+
+function floorPolygon(f){
+  const rows = reshapeMatrix(f.transform);
+  return f.polygonCorners.map(p => {
+    const w = localToWorld(p[0], p[1], p[2], rows);
+    return [w[0], w[2]];
+  });
+}
+
+/* ---------- Build normalized data model from raw JSON ---------- */
+
+function buildData(json){
+  const walls = [], openings = [], furniture = [], floors = [], sections = [];
+
+  json.rooms.forEach((room, roomIdx) => {
+    (room.walls || []).forEach(w => walls.push(annotate(w, 'wall', roomIdx)));
+    (room.doors || []).forEach(o => openings.push(annotate(o, 'door', roomIdx)));
+    (room.windows || []).forEach(o => openings.push(annotate(o, 'window', roomIdx)));
+    (room.openings || []).forEach(o => openings.push(annotate(o, 'opening', roomIdx)));
+    (room.objects || []).forEach(o => furniture.push(annotate(o, 'object', roomIdx)));
+    (room.floors || []).forEach(f => floors.push(annotate(f, 'floor', roomIdx)));
+    (room.sections || []).forEach(s => sections.push(Object.assign({ roomIdx }, s)));
+  });
+
+  return { walls, openings, furniture, floors, sections, roomCount: json.rooms.length };
+}
+
+function annotate(el, kind, roomIdx){
+  const cat = unwrap(el.category);
+  const conf = unwrap(el.confidence);
+  return Object.assign({}, el, {
+    kind,
+    roomIdx,
+    catName: cat.name,
+    catDetail: cat.detail,
+    confLevel: conf.name || 'medium',
+    hasSlope: !!(el.polygonCorners && el.polygonCorners.length > 0),
+    area: computeArea(el)
+  });
+}
+
+function catLabel(el){
+  const map = { wall:'Zid', floor:'Pod', window:'Prozor', opening:'Opening', object: el.catName };
+  if (el.kind === 'door') {
+    const open = el.catDetail && el.catDetail.isOpen;
+    return 'Vrata' + (open === true ? ' (otvorena)' : open === false ? ' (zatvorena)' : '');
+  }
+  return map[el.kind] || el.catName || '—';
+}
+
+/* ---------- Ceiling reconstruction ---------- */
+
+function reconstructCeiling(walls){
+  const profileWalls = walls.filter(w => w.hasSlope);
+  const flatWalls = walls.filter(w => !w.hasSlope);
+  if (!walls.length) return null;
+
+  if (!profileWalls.length) {
+    // no slope data found on any wall — assume flat ceiling = floor footprint
+    return { flat: true, profiles: [] };
+  }
+
+  const roomLength = flatWalls.length ? flatWalls[0].dimensions[0] : null;
+  const profiles = profileWalls.map(w => {
+    const { minY, maxY, pts } = topProfile(w);
+    const len = profileLength(pts);
+    // detect slope segments: consecutive points where height changes
+    const segments = [];
+    for (let i=0;i<pts.length-1;i++){
+      const [x1,y1] = pts[i], [x2,y2] = pts[i+1];
+      const run = Math.abs(x2-x1), rise = Math.abs(y2-y1);
+      const isSlope = rise > 0.02;
+      segments.push({ run, rise, isSlope, angleDeg: isSlope ? Math.degrees ? Math.degrees(Math.atan(rise/run)) : (Math.atan(rise/run)*180/Math.PI) : 0, length: Math.hypot(run,rise) });
+    }
+    const heights = pts.map(p => p[1] - minY);
+    const kneeWallHeight = heights.length ? Math.min(...heights) : (maxY-minY);
+    return { wallId: w.identifier, ridgeHeight: maxY-minY, kneeWallHeight, minY, maxY, segments, profileLength: len };
+  });
+
+  const avgProfileLen = profiles.reduce((a,p) => a+p.profileLength, 0) / profiles.length;
+  const ceilingArea = roomLength ? avgProfileLen * roomLength : null;
+
+  return { flat: false, profiles, roomLength, avgProfileLen, ceilingArea };
+}
+
+/* ---------- Rendering ---------- */
+
+function render(data, filename){
+  document.getElementById('projTitle').textContent = filename.replace(/\.json$/i, '');
+  document.getElementById('projSub').textContent = 'CapturedRoom JSON · ' + data.roomCount + ' prostorija · parsirano lokalno';
+  reportEl.classList.add('show');
+  printBtn.style.display = 'inline-block';
+  furnPanel.classList.toggle('hidden-panel', !furnToggle.checked);
+
+  const grossWallArea = sum(data.walls, w => w.area);
+  const openingArea = sum(data.openings, o => o.area);
+  const netWallArea = grossWallArea - openingArea;
+  const floorArea = sum(data.floors, f => f.area);
+
+  const ceiling = reconstructCeiling(data.walls);
+  const ceilingArea = ceiling && !ceiling.flat ? ceiling.ceilingArea : floorArea;
+
+  document.getElementById('metaStrip').innerHTML =
+    metaChip('Zidova', data.walls.length) + metaChip('Otvora', data.openings.length) + metaChip('Namještaja', data.furniture.length) + metaChip('Prostorija', data.roomCount);
+
+  renderStats({
+    'Površina poda': fmt(floorArea) + ' m²',
+    'Strop (rekonstruirano)': fmt(ceilingArea) + ' m²',
+    'Zidovi (bruto)': fmt(grossWallArea) + ' m²',
+    'Zidovi (neto)': fmt(netWallArea) + ' m²',
+    'Otvori ukupno': fmt(openingArea) + ' m²',
+    'Strop − pod': (ceilingArea && floorArea ? (ceilingArea-floorArea >= 0 ? '+' : '') + fmt(ceilingArea-floorArea) : '—') + ' m²',
+  }, ceiling && !ceiling.flat);
+
+  renderZones(data);
+  renderWallsTable(data);
+  renderCeilingPanel(ceiling);
+  renderOpeningsTable(data);
+  renderFurnitureTable(data.furniture);
+  renderPlan(data, furnToggle.checked);
+
+  document.getElementById('footnote').textContent =
+    'Sve mjere izvučene izravno iz CapturedRoom JSON strukture (dimensions / transform / polygonCorners po elementu). ' +
+    'Neto površina zidova koristi parentIdentifier za povezivanje otvora s pravim zidom. ' +
+    'Strop nije izravno skeniran (RoomPlan nema "ceiling" kategoriju) — rekonstruiran je iz profila zidova s polygonCorners podacima, ' +
+    'uz pretpostavku da se poprečni presjek proteže cijelom dužinom prostorije (jednostavan jednostrešni/dvostrešni krov). ' +
+    'Za složenije oblike krova (koji se mijenjaju u oba smjera) ova metoda nije pouzdana.';
+}
+
+function metaChip(label, value){ return '<div>' + label + '<span>' + value + '</span></div>'; }
+function fmt(n){ if (n === null || n === undefined || isNaN(n)) return '—'; return n.toFixed(2); }
+function sum(arr, fn){ return arr.reduce((a, x) => a + fn(x), 0); }
+
+function renderStats(obj, ceilingIsReconstructed){
+  const grid = document.getElementById('statsGrid');
+  grid.innerHTML = Object.entries(obj).map(([label, value]) => {
+    const hl = label.includes('Strop') ? ' hl' : '';
+    return '<div class="stat' + hl + '"><div class="label">' + label + '</div><div class="value">' + value + '</div></div>';
+  }).join('');
+}
+
+function renderZones(data){
+  const el = document.getElementById('zonesContent');
+  if (!data.sections.length) {
+    el.innerHTML = '<div style="font-family:JetBrains Mono,monospace; font-size:11.5px; color:var(--ink-dim);">Nema imenovanih zona u ovoj datoteci.</div>';
+    return;
+  }
+  let html = '';
+  for (const s of data.sections) {
+    const nearFurn = data.furniture.filter(f => f.roomIdx === s.roomIdx)
+      .map(f => ({ f, d: Math.hypot(f.transform[12]-s.center[0], f.transform[14]-s.center[2]) }))
+      .sort((a,b) => a.d-b.d);
+    const assigned = assignByNearest(data.furniture.filter(f => f.roomIdx===s.roomIdx), data.sections.filter(z=>z.roomIdx===s.roomIdx)).filter(x => x.zone === s.label).map(x => x.item);
+    const label = s.label.replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/^./, c => c.toUpperCase());
+    html += '<div class="zone-block"><div class="zone-title">' + label + '</div>';
+    html += '<div class="zone-sub">' + (assigned.length ? assigned.length + ' komada namještaja u blizini: ' + assigned.map(a=>catLabel(a)).join(' · ') : 'nema namještaja u blizini') + '</div></div>';
+  }
+  el.innerHTML = html;
+}
+
+function assignByNearest(items, zones){
+  return items.map(item => {
+    const [ix,,iz] = [item.transform[12], item.transform[13], item.transform[14]];
+    let best = null, bestD = Infinity;
+    for (const z of zones) {
+      const d = Math.hypot(ix-z.center[0], iz-z.center[2]);
+      if (d < bestD) { bestD = d; best = z.label; }
+    }
+    return { item, zone: best };
+  });
+}
+
+function confBadge(level){
+  return '<span class="badge b-conf-' + level + '">' + level + '</span>';
+}
+
+function renderWallsTable(data){
+  const tbody = document.querySelector('#wallsTable tbody');
+  if (!data.walls.length) { tbody.innerHTML = '<tr><td colspan="5" style="color:var(--ink-faint);">Nema podataka</td></tr>'; return; }
+  tbody.innerHTML = data.walls.map(w => {
+    const linked = data.openings.filter(o => o.parentIdentifier === w.identifier);
+    const openArea = sum(linked, o => o.area);
+    const net = w.area - openArea;
+    const slopeBadge = w.hasSlope ? ' <span class="badge b-slope">kosina</span>' : '';
+    return '<tr><td>' + w.identifier.slice(0,8) + slopeBadge + '</td><td>' + w.dimensions[0].toFixed(2) + ' × ' + w.dimensions[1].toFixed(2) + '</td><td>' + fmt(w.area) + '</td><td>' + fmt(net) + '</td><td>' + confBadge(w.confLevel) + '</td></tr>';
+  }).join('');
+}
+
+function renderCeilingPanel(ceiling){
+  const el = document.getElementById('ceilingContent');
+  if (!ceiling) { el.innerHTML = '<div style="color:var(--ink-faint); font-family:JetBrains Mono,monospace; font-size:11.5px;">Nema zidova za rekonstrukciju.</div>'; return; }
+  if (ceiling.flat) {
+    el.innerHTML = '<div style="font-family:JetBrains Mono,monospace; font-size:11.5px; color:var(--ink-dim);">Nijedan zid nema polygonCorners podatke (nema detektiranih kosina) — strop se tretira kao ravan, jednak tlocrtu poda.</div>';
+    return;
+  }
+  let html = '<table><thead><tr><th>Zid</th><th>Greben (puna V)</th><th>Koljenasti zid</th><th>Segmenti</th></tr></thead><tbody>';
+  for (const p of ceiling.profiles) {
+    const segStr = p.segments.map(s => s.isSlope ? (s.angleDeg.toFixed(1) + '° (' + s.run.toFixed(2) + '×' + s.rise.toFixed(2) + 'm)') : ('ravno ' + s.run.toFixed(2) + 'm')).join(', ');
+    html += '<tr><td>' + p.wallId.slice(0,8) + '</td><td>' + fmt(p.ridgeHeight) + ' m</td><td>' + fmt(p.kneeWallHeight) + ' m</td><td style="font-size:10.5px;">' + segStr + '</td></tr>';
+  }
+  html += '</tbody></table>';
+  html += '<div class="assumption">Prosječna dužina poprečnog presjeka: ' + fmt(ceiling.avgProfileLen) + ' m × dužina prostorije ' + fmt(ceiling.roomLength) + ' m = <strong style="color:var(--line-bright);">' + fmt(ceiling.ceilingArea) + ' m²</strong> ukupne površine stropa. Pretpostavka: isti poprečni presjek proteže se cijelom dužinom prostorije (jednostavan krov). Ne uzima u obzir krovove koji se mijenjaju u oba smjera (npr. "kapa" krov).</div>';
+  el.innerHTML = html;
+}
+
+function renderOpeningsTable(data){
+  const tbody = document.querySelector('#openingsTable tbody');
+  if (!data.openings.length) { tbody.innerHTML = '<tr><td colspan="5" style="color:var(--ink-faint);">Nema podataka</td></tr>'; return; }
+  tbody.innerHTML = data.openings.map(o => {
+    const parentShort = o.parentIdentifier ? o.parentIdentifier.slice(0,8) : '—';
+    return '<tr><td>' + catLabel(o) + '</td><td>' + parentShort + '</td><td>' + o.dimensions[0].toFixed(2) + ' × ' + o.dimensions[1].toFixed(2) + '</td><td>' + fmt(o.area) + '</td><td>' + confBadge(o.confLevel) + '</td></tr>';
+  }).join('');
+}
+
+function renderFurnitureTable(furniture){
+  const tbody = document.querySelector('#furnitureTable tbody');
+  if (!furniture.length) { tbody.innerHTML = '<tr><td colspan="3" style="color:var(--ink-faint);">Nema podataka</td></tr>'; return; }
+  tbody.innerHTML = furniture.map(f => {
+    return '<tr><td><span class="badge b-furn">' + (f.catName||'—') + '</span></td><td>' + f.dimensions.map(n=>n.toFixed(2)).join(' × ') + '</td><td>' + confBadge(f.confLevel) + '</td></tr>';
+  }).join('');
+}
+
+/* ---------- Blueprint SVG floor plan ---------- */
+
+function renderPlan(data, showFurniture){
+  const svg = document.getElementById('plan-svg');
+  const legend = document.getElementById('legend');
+
+  const segs = data.walls.map(w => wallSegment(w));
+  if (!segs.length) { svg.innerHTML = '<text x="50" y="50" fill="#7FA0C4" font-size="4">Nema zidova za crtanje</text>'; return; }
+
+  // Orientation: standard architectural floor plan convention — viewed from above,
+  // north is up and east is right.
+  // World convention (empirically confirmed): +X = East, -Z = North.
+  // Screen convention: +x = right, +y = DOWN.
+  // Therefore the correct top-down mapping is simply:
+  //   screen_x =  world_x   (east -> right)
+  //   screen_y =  world_z   (north is -Z, and screen y grows downward, so -Z -> up)
+  // No rotation and no axis flip is needed; a y-flip here would mirror the plan
+  // (equivalent to viewing it from underneath the floor).
+  const projX = (x, z) => x;
+  const projY = (x, z) => z;
+
+  const projected = segs.map(s => ({
+    p1: [projX(...s.p1), projY(...s.p1)],
+    p2: [projX(...s.p2), projY(...s.p2)]
+  }));
+  const allX = projected.flatMap(s => [s.p1[0], s.p2[0]]);
+  const allY = projected.flatMap(s => [s.p1[1], s.p2[1]]);
+  const pad = 1.6;
+  const minX = Math.min(...allX) - pad, maxX = Math.max(...allX) + pad;
+  const minY = Math.min(...allY) - pad, maxY = Math.max(...allY) + pad;
+  const w = maxX - minX, h = maxY - minY;
+
+  svg.setAttribute('viewBox', '0 0 ' + w.toFixed(2) + ' ' + h.toFixed(2));
+  const toSvg = (x, z) => [ projX(x, z) - minX, projY(x, z) - minY ];
+
+  let parts = [];
+  const gridId = 'grid' + Math.random().toString(36).slice(2,8);
+  parts.push('<defs><pattern id="' + gridId + '" width="0.5" height="0.5" patternUnits="userSpaceOnUse"><path d="M 0.5 0 L 0 0 0 0.5" fill="none" stroke="#16324A" stroke-width="0.012"/></pattern></defs>');
+  parts.push('<rect x="0" y="0" width="' + w + '" height="' + h + '" fill="url(#' + gridId + ')"/>');
+
+  const wallStroke = Math.max(w, h) * 0.012;
+
+  // floor outline (subtle fill)
+  for (const f of data.floors) {
+    const poly = floorPolygon(f).map(p => toSvg(...p));
+    parts.push('<polygon points="' + poly.map(p=>p.join(',')).join(' ') + '" fill="rgba(191,227,255,0.02)" stroke="none"/>');
+  }
+
+  // walls, with slope indicator
+  for (const wg of data.walls) {
+    const s = wallSegment(wg);
+    const [x1, y1] = toSvg(...s.p1);
+    const [x2, y2] = toSvg(...s.p2);
+    const color = wg.hasSlope ? '#D9A441' : '#EAF6FF';
+    const dash = wg.confLevel === 'low' ? (wallStroke*1.2) + ',' + (wallStroke*0.8) : 'none';
+    parts.push('<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + color + '" stroke-width="' + wallStroke + '" stroke-linecap="square" ' + (dash!=='none' ? 'stroke-dasharray="'+dash+'"' : '') + '/>');
+  }
+
+  // openings
+  for (const o of data.openings) {
+    const s = wallSegment(o);
+    const [x1, y1] = toSvg(...s.p1);
+    const [x2, y2] = toSvg(...s.p2);
+    parts.push('<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#0A1929" stroke-width="' + (wallStroke*1.6) + '" stroke-linecap="butt"/>');
+    parts.push('<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#FFDDB0" stroke-width="' + (wallStroke*0.9) + '" stroke-linecap="butt"/>');
+  }
+
+  // furniture
+  if (showFurniture) {
+    for (const f of data.furniture) {
+      const corners = furnitureRect(f).map(p => toSvg(...p));
+      parts.push('<polygon points="' + corners.map(p=>p.join(',')).join(' ') + '" fill="rgba(127,231,196,0.06)" stroke="#7FE7C4" stroke-width="' + (wallStroke*0.5) + '" stroke-dasharray="' + (wallStroke*0.9) + ',' + (wallStroke*0.9) + '"/>');
+    }
+  }
+
+  // dimension lines — always offset outward, away from the room centroid
+  const centroidWorld = [ (Math.min(...data.walls.flatMap(wg=>{const s=wallSegment(wg);return [s.p1[0],s.p2[0]];}))+Math.max(...data.walls.flatMap(wg=>{const s=wallSegment(wg);return [s.p1[0],s.p2[0]];})))/2,
+                           (Math.min(...data.walls.flatMap(wg=>{const s=wallSegment(wg);return [s.p1[1],s.p2[1]];}))+Math.max(...data.walls.flatMap(wg=>{const s=wallSegment(wg);return [s.p1[1],s.p2[1]];})))/2 ];
+  const fontSize = Math.max(w,h) * 0.022;
+  for (const wg of data.walls) {
+    const s = wallSegment(wg);
+    const mid = [ (s.p1[0]+s.p2[0])/2, (s.p1[1]+s.p2[1])/2 ];
+    const [x1, y1] = toSvg(...s.p1);
+    const [x2, y2] = toSvg(...s.p2);
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = Math.hypot(dx, dy) || 1;
+    let nx = -dy/len, ny = dx/len;
+    // flip normal if it points toward the room centroid instead of away from it
+    const [ccx, ccy] = toSvg(...centroidWorld);
+    const [mx0, my0] = toSvg(...mid);
+    const towardCentroid = (ccx-mx0)*nx + (ccy-my0)*ny;
+    if (towardCentroid > 0) { nx = -nx; ny = -ny; }
+    const off = Math.max(w,h) * 0.045;
+    const ox1 = x1 + nx*off, oy1 = y1 + ny*off, ox2 = x2 + nx*off, oy2 = y2 + ny*off;
+    const tick = Math.max(w,h) * 0.012;
+    parts.push('<g stroke="#FFB067" stroke-width="' + (wallStroke*0.35) + '" opacity="0.85">');
+    parts.push('<line x1="' + ox1 + '" y1="' + oy1 + '" x2="' + ox2 + '" y2="' + oy2 + '"/>');
+    parts.push('<line x1="' + x1 + '" y1="' + y1 + '" x2="' + ox1 + '" y2="' + oy1 + '" stroke-dasharray="' + tick + ',' + tick + '"/>');
+    parts.push('<line x1="' + x2 + '" y1="' + y2 + '" x2="' + ox2 + '" y2="' + oy2 + '" stroke-dasharray="' + tick + ',' + tick + '"/>');
+    parts.push('</g>');
+    const mxl = (ox1+ox2)/2, myl = (oy1+oy2)/2;
+    parts.push('<text x="' + mxl + '" y="' + myl + '" fill="#FFB067" font-size="' + fontSize + '" font-family="JetBrains Mono, monospace" text-anchor="middle" dy="' + (-fontSize*0.35) + '">' + s.len.toFixed(2) + ' m</text>');
+  }
+
+  // zone labels
+  for (const s of data.sections) {
+    const [x, y] = toSvg(s.center[0], s.center[2]);
+    const label = s.label.replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/^./, c => c.toUpperCase());
+    parts.push('<text x="' + x + '" y="' + y + '" fill="#7FA0C4" font-size="' + (fontSize*1.2) + '" font-family="Space Grotesk, sans-serif" text-anchor="middle" opacity="0.8">' + label + '</text>');
+  }
+
+  // compass — with the direct top-down projection above (no rotation, no flip),
+  // world north (-Z) always maps to screen up, so the arrow points straight up.
+  const compassRotationDeg = 0;
+
+  const cx = w - Math.max(w,h)*0.14, cy = Math.max(w,h)*0.10, cr = Math.max(w,h)*0.04;
+  parts.push('<g transform="rotate(' + compassRotationDeg.toFixed(1) + ' ' + cx + ' ' + cy + ')">' +
+    '<g stroke="#7FA0C4" fill="none" stroke-width="' + (wallStroke*0.4) + '">' +
+    '<line x1="' + cx + '" y1="' + (cy+cr) + '" x2="' + cx + '" y2="' + (cy-cr) + '"/>' +
+    '<polygon points="' + cx + ',' + (cy-cr) + ' ' + (cx-cr*0.28) + ',' + (cy-cr*0.55) + ' ' + (cx+cr*0.28) + ',' + (cy-cr*0.55) + '" fill="#7FA0C4"/></g>' +
+    '<text x="' + cx + '" y="' + (cy-cr-fontSize*0.4) + '" fill="#7FA0C4" font-size="' + (fontSize*0.9) + '" font-family="JetBrains Mono, monospace" text-anchor="middle">N</text>' +
+    '</g>');
+  parts.push('<text x="' + cx + '" y="' + (cy+cr+fontSize*1.1) + '" fill="#7FA0C4" font-size="' + (fontSize*0.55) + '" font-family="JetBrains Mono, monospace" text-anchor="middle" opacity="0.65">procjena</text>');
+
+  svg.innerHTML = parts.join('');
+
+  legend.innerHTML =
+    '<span><span class="sw" style="background:#EAF6FF;"></span>Ravan zid</span>' +
+    '<span><span class="sw" style="background:#FFB067;"></span>Zid s kosinom</span>' +
+    '<span><span class="sw" style="background:#FFDDB0;"></span>Otvor</span>' +
+    (showFurniture ? '<span><span class="sw" style="background:#7FE7C4;"></span>Namještaj</span>' : '');
+}
+</script>
+</body>
+</html>
