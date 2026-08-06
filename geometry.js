@@ -514,6 +514,54 @@ function northBearingFrom(headingDegrees, refRotDeg){
   return ((headingDegrees - (refRotDeg || 0) + HEADING_OFFSET_DEG) % 360 + 360) % 360;
 }
 
+// ---------- Plan orientation ----------
+// Pure decision logic for how the floor plan is rotated on screen — extracted
+// out of the DOM layer because every orientation bug this project has had
+// (offset sign, inverted rotation sense, the Portrait 180° flip) lived here
+// while it was untestable inside renderPlan.
+//
+// Inputs:
+//   wallAngle      — screen angle (deg) of the longest wall's segment, from atan2
+//   northB         — true-north bearing of world -Z (northBearingFrom), or null
+//   override       — 'landscape' | 'portrait' | null (user's manual toggle)
+//   panelLandscape — fallback preference when north is unknown (panel wider than tall)
+// Returns: { rotDeg, landscape, auto }
+//
+// Rules, in order:
+// 1. All four axis-aligned rotations keep the walls straight; when north is
+//    known, the base is whichever of the four puts true north closest to the
+//    top of the screen — that also decides Portrait/Landscape, because a 90°
+//    step swaps them (Portrait alone can never reach north-up when the walls
+//    run ~90° off north, as on the reference scan: 87°/93° vs Landscape's 3°).
+// 2. The OTHER orientation is a fixed -90° quarter turn from that base, never
+//    an independent "north closest to up" pick: in the non-north-up
+//    orientation both candidates sit ~90° from the top, so that criterion is
+//    decided by a few degrees of wall angle yet flips the drawing by 180° —
+//    physically verified to land the wrong way round.
+// 3. Without meta.json north is unknown; orientation is just the panel shape
+//    (or the manual override) and rotation aligns the longest wall.
+function planOrientation(opts){
+  const { wallAngle, northB, override, panelLandscape } = opts;
+  const norm = a => ((a % 360) + 360) % 360;
+  if (northB != null) {
+    const offsetFor = step => {
+      const rose = norm(-wallAngle + step - northB);
+      return Math.abs(rose > 180 ? rose - 360 : rose);
+    };
+    let base = 0;
+    for (const step of [90, 180, 270]) if (offsetFor(step) < offsetFor(base)) base = step;
+    const baseLandscape = base % 180 === 0;
+    const landscape = override != null ? override === 'landscape' : baseLandscape;
+    return {
+      rotDeg: norm(-wallAngle + base + (landscape === baseLandscape ? 0 : -90)),
+      landscape,
+      auto: override == null
+    };
+  }
+  const landscape = override != null ? override === 'landscape' : !!panelLandscape;
+  return { rotDeg: norm(-wallAngle + (landscape ? 0 : 90)), landscape, auto: override == null };
+}
+
 function sum(arr, fn){ return arr.reduce((a, x) => a + fn(x), 0); }
 
 function fmt(n){ if (n === null || n === undefined || isNaN(n)) return '—'; return n.toFixed(2); }
@@ -528,7 +576,7 @@ if (typeof module !== 'undefined' && module.exports) {
     esc, unwrap, shoelace2D, reshapeMatrix, localToWorld, computeArea,
     topProfile, topEdgeSloped, profileLength, wallSegment, furnitureRect,
     floorPolygon, CONF_LEVELS, annotate, buildData, catLabel, wallNetArea,
-    reconstructCeilingForRoom, reconstructCeiling, northBearingFrom,
+    reconstructCeilingForRoom, reconstructCeiling, northBearingFrom, planOrientation,
     sum, fmt, fmtArea, APPLE_EPOCH_MS, HEADING_OFFSET_DEG,
     segmentRooms, zoneIdAt, classifyZone, furnitureByZone, wallsByZone,
     OBJECT_VOTES, ZONE_LABELS_HR,
