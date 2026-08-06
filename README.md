@@ -22,6 +22,23 @@ Alat koji iz RoomPlan (LiDAR) JSON skeniranja prostorije generira tehnički izvj
 
 Otvori `index.html` u browseru (ili preko GitHub Pages linka), ubaci `.json` fajl (drag & drop ili klik), izvještaj se generira automatski.
 
+## Struktura koda
+
+- `index.html` — samo markup
+- `style.css` — sav CSS (ekranska tema + print paleta)
+- `geometry.js` — čista logika (parsiranje, geometrija, površine, sjever) bez DOM-a; radi i u Nodeu
+- `app.js` — DOM, renderiranje izvještaja i SVG tlocrta, kompas, živi kompas uređaja
+
+I dalje bez build koraka — GitHub Pages servira fajlove kakvi jesu, a alat radi i otvoren direktno s diska (`index.html`).
+
+## Testovi
+
+```
+node test/geometry.test.js
+```
+
+Testovi koriste sintetičku prostoriju (nikad stvarne skenove klijenata — `.gitignore` blokira `*.json`) i pokrivaju: deduplikaciju, površine iz poligona, neto zidove preko `parentIdentifier`-a s clampom, rekonstrukciju stropa (greben/koljeno/profil), formulu sjevera i robusnost parsiranja.
+
 ## Tehničke napomene
 
 - Pravi sjever: `scan.json` sam po sebi nema apsolutni smjer (ARKit orijentacija je proizvoljna po sesiji). Računa se kombinacijom `meta.json` → `headingDegrees` i `referenceOriginTransform` rotacije iz `scan.json` (RoomPlan interno poravnava koordinate sa zidovima, a taj transform pamti izvornu orijentaciju sesije): `sjever = heading − refRot + 90°`. Korekcija od +90° je kalibrirana fizičkom provjerom kompasom — app bilježi sirovi CLHeading koji mjeri smjer vrha uređaja, ne kamere (telefon u landscape orijentaciji pri startu skena daje očitanje pomaknuto za 90°). Bez meta.json kompas prati pretpostavljeni sjever (−Z).
