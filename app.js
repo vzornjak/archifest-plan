@@ -114,7 +114,7 @@ function updateDevNeedle(){
   n.setAttribute('transform', 'rotate(' + ang + ' ' + st.cx + ' ' + st.cy + ')');
   if (dbg) {
     dbg.style.display = '';
-    dbg.textContent = 'raw ' + devCompass.rawHeading.toFixed(0) + '° · ekran ' + devCompass.screenAngle.toFixed(0) + '° · ruža ' + ang.toFixed(0) + '°';
+    dbg.textContent = 's' + devCompass.rawHeading.toFixed(0) + '° e' + devCompass.screenAngle.toFixed(0) + '° r' + ang.toFixed(0) + '°';
   }
 }
 
