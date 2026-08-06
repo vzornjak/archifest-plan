@@ -89,6 +89,43 @@ eq('north = heading - refRot - 90', g.northBearingFrom(90.52, 89.56), ((90.52 - 
 eq('north wraps into [0,360)', g.northBearingFrom(10, 200), ((10 - 200 - 90) % 360 + 360) % 360, 1e-9);
 eq('north null without heading', g.northBearingFrom(null, 45), null);
 
+// --- plan orientation (the code every past orientation bug lived in) ---
+{
+  const norm = a => ((a % 360) + 360) % 360;
+  const roseOf = (o, northB) => norm(o.rotDeg - northB);
+  const offTop = r => Math.min(r, 360 - r);
+
+  // reference-scan values: walls ~92° off north, north bearing 270.96
+  const REF = { wallAngle: 92.09, northB: 270.96 };
+
+  const auto = g.planOrientation({ ...REF, override: null, panelLandscape: false });
+  ok('auto: north-up wins over panel shape (landscape)', auto.landscape === true && auto.auto === true);
+  ok('auto: north within 5° of up', offTop(roseOf(auto, REF.northB)) < 5);
+
+  const portrait = g.planOrientation({ ...REF, override: 'portrait', panelLandscape: false });
+  ok('portrait override respected', portrait.landscape === false && portrait.auto === false);
+  eq('portrait is exactly a -90° quarter turn from the base', norm(portrait.rotDeg - auto.rotDeg), 270, 1e-9);
+  eq('portrait rose lands at ~267 (not the 180°-flipped 87)', roseOf(portrait, REF.northB), 266.95, 0.02);
+
+  const landOverride = g.planOrientation({ ...REF, override: 'landscape', panelLandscape: false });
+  eq('landscape override equals the auto base here', landOverride.rotDeg, auto.rotDeg, 1e-9);
+
+  // a scan whose north-up base is Portrait: walls on axis, north at bearing 88
+  const p = g.planOrientation({ wallAngle: 0, northB: 88, override: null, panelLandscape: true });
+  ok('portrait base: auto picks Portrait despite wide panel', p.landscape === false);
+  ok('portrait base: north within 5° of up', offTop(roseOf(p, 88)) < 5);
+  const pl = g.planOrientation({ wallAngle: 0, northB: 88, override: 'landscape', panelLandscape: true });
+  eq('portrait base: Landscape override is a -90° quarter turn', norm(pl.rotDeg - p.rotDeg), 270, 1e-9);
+
+  // without meta.json: panel shape (or override) decides, walls stay aligned
+  const nm1 = g.planOrientation({ wallAngle: 30, northB: null, override: null, panelLandscape: true });
+  eq('no meta: landscape aligns longest wall horizontally', nm1.rotDeg, 330, 1e-9);
+  const nm2 = g.planOrientation({ wallAngle: 30, northB: null, override: null, panelLandscape: false });
+  eq('no meta: portrait aligns longest wall vertically', nm2.rotDeg, 60, 1e-9);
+  const nm3 = g.planOrientation({ wallAngle: 30, northB: null, override: 'portrait', panelLandscape: true });
+  ok('no meta: override beats panel shape', nm3.landscape === false && nm3.rotDeg === 60);
+}
+
 // --- robustness ---
 ok('string enums unwrapped', g.unwrap('wall').name === 'wall');
 eq('degenerate polygon falls back to dims', g.computeArea({ polygonCorners: [[0,0,0],[1,0,0]], dimensions:[2,3,0] }), 6);

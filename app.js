@@ -129,34 +129,54 @@ function updateDevNeedle(){
 
 function setStatus(msg, cls){ statusEl.textContent = msg; statusEl.className = cls || ''; }
 
+// Files are classified up front so a whole selection (scan + meta together, in
+// either order) is applied as one unit. Crucially: loading a NEW scan without
+// its own meta.json clears the previous project's meta — otherwise the old
+// project's name, address, coordinates and north heading would silently carry
+// over into the new report (verified bug: a different room inherited the
+// previous scan's address and a bogus north).
 async function handleFiles(files){
-  for (const f of files) await handleFile(f);
+  if (!files.length) return;
+  const items = [];
+  for (const f of files) {
+    try {
+      items.push({ name: f.name, json: JSON.parse(await f.text()) });
+    } catch (err) {
+      console.error(err);
+      setStatus('Greška pri čitanju ' + f.name + ': ' + err.message, 'err');
+      return;
+    }
+  }
+  const isMeta = j => j.headingDegrees != null && !j.rooms && !j.walls;
+  const metas = items.filter(i => isMeta(i.json));
+  const scans = items.filter(i => !isMeta(i.json));
+  if (scans.length && !metas.length) window.__meta = null; // new scan, no meta of its own
+  for (const m of metas) applyMeta(m.json, scans.length > 0);
+  for (const s of scans) applyScan(s.name, s.json);
 }
 
-async function handleFile(file){
-  setStatus('Čitam ' + file.name + ' …');
+function applyMeta(json, scanFollows){
+  window.__meta = json;
+  setStatus('meta.json učitan — kompasni smjer poznat (heading ' + json.headingDegrees.toFixed(1) + '°).', 'ok');
+  // re-render only when no fresh scan is coming in the same batch — otherwise
+  // the old project's data would flash briefly with the new project's meta
+  if (!scanFollows && window.__lastData) render(window.__lastData, window.__lastName);
+}
+
+function applyScan(name, json){
+  // some apps export the CapturedRoom itself, without a "rooms" wrapper
+  if (!json.rooms && json.walls) json = { rooms: [json] };
+  if (!json.rooms || !json.rooms.length) {
+    setStatus('JSON ne sadrži "rooms" ni "walls" polje — ovo ne izgleda kao CapturedRoom export.', 'err');
+    return;
+  }
   try {
-    const text = await file.text();
-    let json = JSON.parse(text);
-    // meta.json (app metadata with compass heading), not a scan
-    if (json.headingDegrees != null && !json.rooms && !json.walls) {
-      window.__meta = json;
-      setStatus('meta.json učitan — kompasni smjer poznat (heading ' + json.headingDegrees.toFixed(1) + '°).', 'ok');
-      if (window.__lastData) render(window.__lastData, window.__lastName);
-      return;
-    }
-    // some apps export the CapturedRoom itself, without a "rooms" wrapper
-    if (!json.rooms && json.walls) json = { rooms: [json] };
-    if (!json.rooms || !json.rooms.length) {
-      setStatus('JSON ne sadrži "rooms" ni "walls" polje — ovo ne izgleda kao CapturedRoom export.', 'err');
-      return;
-    }
     const data = buildData(json);
     setStatus('Učitano — ' + data.walls.length + ' zidova, ' + data.openings.length + ' otvora, ' + data.furniture.length + ' komada namještaja.' + (window.__meta ? ' Pravi sjever iz meta.json.' : ''), 'ok');
     window.__lastData = data;
-    window.__lastName = file.name;
+    window.__lastName = name;
     orientationOverride = null; // back to auto orientation for a new scan
-    render(data, file.name);
+    render(data, name);
   } catch (err) {
     console.error(err);
     setStatus('Greška pri obradi: ' + err.message, 'err');
@@ -328,11 +348,11 @@ function renderZonesSegmented(el, data, seg){
     html += '<div class="zone-sub">' + fmtArea(z.area) + ' pod · ' + fmtArea(wallsTotal) + ' zidovi (za premaz)' +
       (objs.length ? ' · ' + objs.map(o=>esc(catLabel(o))).join(' · ') : ' · nema namještaja') + '</div>';
     if (walls.length) {
-      html += '<table style="margin-top:6px;"><thead><tr><th>Zid</th><th>Dim (m)</th><th>Površina</th><th></th></tr></thead><tbody>';
+      html += '<table style="margin-top:6px;"><thead><tr><th>Zid</th><th>Dim (m)</th><th>Površina</th></tr></thead><tbody>';
       html += walls.map(w => {
         const wg = w.wall;
         const badge = w.sharedWith != null ? ' <span class="badge b-shared">dijeljen</span>' : '';
-        return '<tr><td>' + esc(String(wg.identifier).slice(0,8)) + badge + '</td><td>' + wg.dimensions[0].toFixed(2) + ' × ' + wg.dimensions[1].toFixed(2) + '</td><td>' + fmt(w.netArea) + '</td><td></td></tr>';
+        return '<tr><td>' + esc(String(wg.identifier).slice(0,8)) + badge + '</td><td>' + wg.dimensions[0].toFixed(2) + ' × ' + wg.dimensions[1].toFixed(2) + '</td><td>' + fmt(w.netArea) + '</td></tr>';
       }).join('');
       html += '</tbody></table>';
     }
@@ -446,62 +466,25 @@ function renderPlan(data, showFurniture){
   }
 
   // Base top-down mapping (viewed from above): screen_x = world_x, screen_y = world_z.
-  // IMPORTANT: ARKit/RoomPlan world yaw is session-dependent — world -Z is true
-  // north ONLY when the scanner app used gravityAndHeading world alignment.
-  // Otherwise -Z points wherever the phone faced when the scan started. The plan
-  // therefore auto-aligns to the longest wall by default, offers manual rotation,
-  // and the compass rotates together with the plan (it tracks the assumed north
-  // direction, it does not claim true north).
+  // The drawing is always straight, aligned to the longest wall. All orientation
+  // decisions (which of the four axis-aligned rotations, Portrait vs Landscape,
+  // manual override) live in planOrientation() in geometry.js — pure and unit
+  // tested, because that's where every orientation bug so far has lived. The
+  // compass rose in the legend shows where true north ends up; when meta.json
+  // is absent north is unknown and the rose tracks the assumed north instead.
   const northB = northBearingDeg(); // bearing of world -Z, or null without meta.json
-  // The drawing is always straight, aligned to the longest wall — never tilted.
-  // Landscape puts that wall horizontal, Portrait vertical; the compass rose in
-  // the legend keeps pointing at the real north either way.
   const longest = data.walls.reduce((a,b) => (b.dimensions[0] > a.dimensions[0] ? b : a));
   const lseg = wallSegment(longest);
   const wallAngle = Math.atan2(lseg.p2[1]-lseg.p1[1], lseg.p2[0]-lseg.p1[0]) * 180/Math.PI;
-  // how far true north lands from the top of the screen for a given 90° step
-  const northOffsetFor = step => {
-    const rose = ((-wallAngle + step - northB) % 360 + 360) % 360;
-    return Math.abs(rose > 180 ? rose - 360 : rose);
-  };
-
-  let rotDeg, wantLandscape;
-  if (northB != null) {
-    // North-up base: of the FOUR axis-aligned rotations (all equally straight),
-    // take the one putting true north closest to the top, and let it decide
-    // Portrait/Landscape by default. A 90° step swaps Portrait<->Landscape, so
-    // considering only the 180° flip within a fixed orientation — as this once
-    // did — can leave north stuck ~90° off: on the reference scan Portrait only
-    // reaches 87°/93° from north-up while Landscape reaches 3°, which made
-    // "face north and the plan matches the room" impossible in Portrait.
-    let base = 0;
-    for (const step of [90, 180, 270]) if (northOffsetFor(step) < northOffsetFor(base)) base = step;
-    const baseLandscape = base % 180 === 0;
-    if (orientationOverride) {
-      wantLandscape = orientationOverride === 'landscape';
-    } else {
-      wantLandscape = baseLandscape;
-      landToggle.checked = wantLandscape;
-    }
-    // Switching to the other orientation is a fixed quarter turn from that base,
-    // NOT an independent "north closest to up" pick for the other orientation.
-    // In the non-north-up orientation both candidates sit ~90° from the top
-    // (87° vs 93° here), so choosing between them on that criterion is decided
-    // by a few degrees of wall angle yet changes the drawing by a full 180° —
-    // physically verified as landing the wrong way round. The quarter turn keeps
-    // the toggle predictable and consistent with the verified base.
-    rotDeg = -wallAngle + base + (wantLandscape === baseLandscape ? 0 : -90);
-  } else {
-    if (orientationOverride) {
-      wantLandscape = orientationOverride === 'landscape';
-    } else {
-      const panelW = svg.parentElement ? svg.parentElement.clientWidth : 800;
-      wantLandscape = panelW >= window.innerHeight * 0.7;
-      landToggle.checked = wantLandscape;
-    }
-    // No meta.json: north is unknown, so orientation is just the panel shape.
-    rotDeg = -wallAngle + (wantLandscape ? 0 : 90);
-  }
+  const panelW = svg.parentElement ? svg.parentElement.clientWidth : 800;
+  const orient = planOrientation({
+    wallAngle,
+    northB,
+    override: orientationOverride,
+    panelLandscape: panelW >= window.innerHeight * 0.7
+  });
+  const rotDeg = orient.rotDeg, wantLandscape = orient.landscape;
+  if (orient.auto) landToggle.checked = wantLandscape;
   const th = rotDeg * Math.PI/180, cosT = Math.cos(th), sinT = Math.sin(th);
   const projX = (x, z) => x*cosT - z*sinT;
   const projY = (x, z) => x*sinT + z*cosT;

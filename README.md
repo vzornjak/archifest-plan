@@ -38,7 +38,9 @@ I dalje bez build koraka — GitHub Pages servira fajlove kakvi jesu, a alat rad
 node test/geometry.test.js
 ```
 
-Testovi koriste sintetičku prostoriju (nikad stvarne skenove klijenata — `.gitignore` blokira `*.json`) i pokrivaju: deduplikaciju, površine iz poligona, neto zidove preko `parentIdentifier`-a s clampom, rekonstrukciju stropa (greben/koljeno/profil), formulu sjevera i robusnost parsiranja.
+Testovi koriste sintetičku prostoriju (nikad stvarne skenove klijenata — `.gitignore` blokira `*.json`) i pokrivaju: deduplikaciju, površine iz poligona, neto zidove preko `parentIdentifier`-a s clampom, rekonstrukciju stropa (greben/koljeno/profil), segmentaciju i klasifikaciju soba s dijeljenim zidom, formulu sjevera, **orijentaciju tlocrta** (`planOrientation` — sjever-gore izbor, Portrait/Landscape kao četvrtina okreta, ručni override, ponašanje bez meta.json) i robusnost parsiranja.
+
+Orijentacijska logika je namjerno izdvojena iz `app.js` u `geometry.js` kao čista funkcija: tu su živjeli svi dosadašnji bugovi oko sjevera i rotacije, a dok je bila unutar DOM sloja nije se mogla testirati.
 
 ## Tehničke napomene
 

@@ -137,7 +137,7 @@
     }
     body{ background:#fff; color:#111; padding:0; }
     .sheet{ border-color:#111; }
-    #dropzone, #printBtn, #status, .toggle-wrap, .mini-btn{ display:none !important; }
+    #dropzone, #printBtn, #status, .toggle-wrap, .mini-btn, .compass-debug{ display:none !important; }
     .panel{ background:#fff; border-color:#999; break-inside:avoid; }
     #plan-svg{ background:#fff; }
     .sv-grid{ stroke:#e5e5e5; }
