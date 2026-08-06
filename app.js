@@ -30,6 +30,17 @@ landToggle.addEventListener('change', () => {
   if (window.__lastData) renderPlan(window.__lastData, furnToggle.checked);
 });
 
+// DIO B: when orientation is auto (no manual toggle), re-run the auto pick on
+// an actual physical screen rotation — previously this only ran at load time,
+// so rotating the phone after opening a report left the drawing stale.
+function debounce(fn, ms){
+  let t = null;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+window.addEventListener('resize', debounce(() => {
+  if (window.__lastData && orientationOverride === null) renderPlan(window.__lastData, furnToggle.checked);
+}, 150));
+
 /* ---------- Live device compass ---------- */
 
 const devBtn = document.getElementById('devCompassBtn');
@@ -45,6 +56,7 @@ devBtn.addEventListener('click', async () => {
     }
     window.addEventListener('deviceorientationabsolute', onDevOrientation);
     window.addEventListener('deviceorientation', onDevOrientation);
+    window.addEventListener('orientationchange', onScreenRotate);
     devCompass.on = true;
     devBtn.classList.add('active');
   } catch (e) {
@@ -54,30 +66,53 @@ devBtn.addEventListener('click', async () => {
 function stopDevCompass(){
   window.removeEventListener('deviceorientationabsolute', onDevOrientation);
   window.removeEventListener('deviceorientation', onDevOrientation);
+  window.removeEventListener('orientationchange', onScreenRotate);
   devCompass.on = false;
   devCompass.heading = null;
   devBtn.classList.remove('active');
   const n = document.getElementById('devNeedle');
   if (n) n.style.display = 'none';
+  const dbg = document.getElementById('devDebug');
+  if (dbg) dbg.textContent = '';
+}
+function onScreenRotate(){ requestAnimationFrame(updateDevNeedle); }
+
+// DIO A: raw sensor heading is relative to the device's PHYSICAL top edge and
+// does not account for how the browser's viewport is currently rotated
+// (portrait / landscape-primary / landscape-secondary) — a known gap in both
+// webkitCompassHeading and generic deviceorientationabsolute alpha. Correct it
+// with the live screen rotation angle. SCREEN_ANGLE_SIGN mirrors the earlier
+// HEADING_OFFSET_DEG pattern: flip to -1 in one line if a physical test shows
+// the sign is backwards.
+const SCREEN_ANGLE_SIGN = 1;
+function currentScreenAngle(){
+  if (screen.orientation && typeof screen.orientation.angle === 'number') return screen.orientation.angle;
+  if (typeof window.orientation === 'number') return window.orientation; // legacy iOS fallback
+  return 0;
 }
 let devRaf = false;
 function onDevOrientation(e){
-  let h = null;
-  if (e.webkitCompassHeading != null) h = e.webkitCompassHeading;       // iOS: true bearing of device top
-  else if (e.absolute && e.alpha != null) h = 360 - e.alpha;            // Android absolute orientation
-  if (h == null) return;
-  devCompass.heading = h;
+  let raw = null;
+  if (e.webkitCompassHeading != null) raw = e.webkitCompassHeading;     // iOS: true bearing of device top
+  else if (e.absolute && e.alpha != null) raw = 360 - e.alpha;          // Android absolute orientation
+  if (raw == null) return;
+  const screenAngle = currentScreenAngle();
+  devCompass.rawHeading = raw;
+  devCompass.screenAngle = screenAngle;
+  devCompass.heading = ((raw + SCREEN_ANGLE_SIGN * screenAngle) % 360 + 360) % 360;
   if (!devRaf) { devRaf = true; requestAnimationFrame(updateDevNeedle); }
 }
 function updateDevNeedle(){
   devRaf = false;
   const n = document.getElementById('devNeedle');
+  const dbg = document.getElementById('devDebug');
   const st = window.__compassState;
   if (!n || !devCompass.on || devCompass.heading == null) return;
   if (!st || st.northB == null) { n.style.display = 'none'; return; }  // plan north unknown
   const ang = ((st.roseDeg + devCompass.heading) % 360 + 360) % 360;
   n.style.display = '';
   n.setAttribute('transform', 'rotate(' + ang + ' ' + st.cx + ' ' + st.cy + ')');
+  if (dbg) dbg.textContent = 'raw ' + devCompass.rawHeading.toFixed(0) + '° · ekran ' + devCompass.screenAngle.toFixed(0) + '° · ruža ' + ang.toFixed(0) + '°';
 }
 
 function setStatus(msg, cls){ statusEl.textContent = msg; statusEl.className = cls || ''; }
@@ -188,7 +223,10 @@ function render(data, filename){
     '(RoomPlan interno poravnava koordinate sa zidovima, a korekcija od +90° je kalibrirana fizičkom provjerom kompasom: ' +
     'app bilježi sirovi CLHeading koji mjeri vrh uređaja, ne smjer kamere). ' +
     'Bez meta.json orijentacija je proizvoljna po sesiji skeniranja — kompas tada prati pretpostavljeni sjever. ' +
-    'Tlocrt je poravnat s najdužim zidom; sjever pokazuje kompasna ruža u legendi. ' +
+    'Tlocrt je poravnat s najdužim zidom; sjever pokazuje kompasna ruža u legendi. Kad je sjever poznat, između dvije jednako ravne orijentacije ' +
+    '(rotirane 180°, isti tlocrt) bira se ona gdje je sjever bliže gore. Auto-odabir Portrait/Landscape (kad nije ručno postavljen) reagira odmah na ' +
+    'fizičku rotaciju ekrana. Živa strelica (🧭) dodatno kompenzira trenutni kut rotacije ekrana (screen.orientation) — sirovi kompasni signal mjeri ' +
+    'fizički vrh uređaja, ne trenutnu orijentaciju sadržaja na ekranu. ' +
     'Simbol otvaranja vrata (krilo + luk) je konvencija — sken ne bilježi stranu šarki ni smjer otvaranja. ' +
     'Adresa se dohvaća reverse geocodingom (OpenStreetMap Nominatim) — jedino se koordinate iz meta.json šalju tom servisu; sken ostaje lokalno.';
 }
@@ -364,7 +402,16 @@ function renderPlan(data, showFurniture){
     wantLandscape = panelW >= window.innerHeight * 0.7;
     landToggle.checked = wantLandscape;
   }
-  const rotDeg = -wallAngle + (wantLandscape ? 0 : 90);
+  let rotDeg = -wallAngle + (wantLandscape ? 0 : 90);
+  // DIO C: of the two equally-straight 180°-apart variants for this Landscape/
+  // Portrait choice (a pure rotation, same shape either way — the mirror choice
+  // is otherwise arbitrary, coming from point order in the scan JSON), prefer
+  // whichever puts true north closer to "up" when it's known.
+  if (northB != null) {
+    const nb = ((rotDeg - northB) % 360 + 360) % 360;
+    const d = nb > 180 ? nb - 360 : nb; // signed distance of north from "up", (-180,180]
+    if (Math.abs(d) > 90) rotDeg = (rotDeg + 180) % 360;
+  }
   const th = rotDeg * Math.PI/180, cosT = Math.cos(th), sinT = Math.sin(th);
   const projX = (x, z) => x*cosT - z*sinT;
   const projY = (x, z) => x*sinT + z*cosT;
@@ -541,4 +588,7 @@ function compassRose(parts, cx, cy, r, roseDeg, stroke, fontSize, label){
     '<polygon class="sv-live" points="' + cx + ',' + (cy - r*0.64) + ' ' + (cx - r*0.085) + ',' + (cy - r*0.34) + ' ' + (cx + r*0.085) + ',' + (cy - r*0.34) + '"/>' +
     '</g>');
   parts.push('<text x="' + cx + '" y="' + (cy + r + fontSize*0.8) + '" class="sv-muted" font-size="' + (fontSize*0.55) + '" font-family="JetBrains Mono, monospace" text-anchor="middle" opacity="0.65">' + label + '</text>');
+  // diagnostic line for live-compass calibration — empty (invisible) unless the
+  // device compass is on; not sent anywhere, purely a local readout
+  parts.push('<text id="devDebug" x="' + cx + '" y="' + (cy + r + fontSize*1.7) + '" class="sv-muted" font-size="' + (fontSize*0.42) + '" font-family="JetBrains Mono, monospace" text-anchor="middle" opacity="0.55"></text>');
 }
