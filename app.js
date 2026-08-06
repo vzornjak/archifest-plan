@@ -351,8 +351,12 @@ function renderZonesSegmented(el, data, seg){
       html += '<table style="margin-top:6px;"><thead><tr><th>Zid</th><th>Dim (m)</th><th>Površina</th></tr></thead><tbody>';
       html += walls.map(w => {
         const wg = w.wall;
-        const badge = w.sharedWith != null ? ' <span class="badge b-shared">dijeljen</span>' : '';
-        return '<tr><td>' + esc(String(wg.identifier).slice(0,8)) + badge + '</td><td>' + wg.dimensions[0].toFixed(2) + ' × ' + wg.dimensions[1].toFixed(2) + '</td><td>' + fmt(w.netArea) + '</td></tr>';
+        const badge = w.sharedWith.length ? ' <span class="badge b-shared">dijeljen</span>' : '';
+        // a wall the room only partly borders (it continues into another room),
+        // or one whose both faces are inside this room, is worth showing
+        const partial = Math.abs(w.share - 1) > 0.02
+          ? ' <span class="badge b-part">' + Math.round(w.share*100) + '%</span>' : '';
+        return '<tr><td>' + esc(String(wg.identifier).slice(0,8)) + badge + partial + '</td><td>' + wg.dimensions[0].toFixed(2) + ' × ' + wg.dimensions[1].toFixed(2) + '</td><td>' + fmt(w.netArea) + '</td></tr>';
       }).join('');
       html += '</tbody></table>';
     }
@@ -361,7 +365,10 @@ function renderZonesSegmented(el, data, seg){
   el.innerHTML = html;
   const note = document.getElementById('zonesNote');
   if (note) {
-    note.textContent = 'Automatska segmentacija (mreža ' + (CELL_M*100).toFixed(0) + ' cm) — granice i klasifikacija su procjena. "Dijeljen" zid ulazi punom površinom u obje sobe (svaka strana svoj premaz); ukupni zbroj zidova u Pregledu i dalje broji svaki zid jednom.';
+    note.textContent = 'Automatska segmentacija (mreža ' + (CELL_M*100).toFixed(0) + ' cm) — granice i klasifikacija su procjena. ' +
+      'Svaka soba dobiva onaj dio zida koji stvarno graniči s njom: "dijeljen" zid ulazi punom površinom u obje sobe (svaka strana svoj premaz), ' +
+      'a zid koji se proteže kroz više soba dijeli se po stvarnoj dužini (postotak uz zid). Pregradni zid s oba lica u istoj sobi broji se dvaput. ' +
+      'Ukupni zbroj zidova u Pregledu i dalje broji svaki zid jednom.';
     note.style.display = '';
   }
 }

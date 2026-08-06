@@ -73,6 +73,7 @@
   .b-conf-medium{ background:rgba(255,176,103,0.14); color:var(--amber); }
   .b-conf-low{ background:rgba(255,154,154,0.14); color:var(--rose); }
   .b-shared{ background:rgba(127,231,196,0.14); color:var(--mint); }
+  .b-part{ background:rgba(255,176,103,0.14); color:var(--amber); }
 
   .zone-block{ margin-bottom:12px; }
   .zone-title{ font-weight:600; font-size:13.5px; }
