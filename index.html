@@ -92,6 +92,7 @@
   .profile-mini{ display:inline-block; vertical-align:middle; margin-left:6px; }
 
   .assumption{ font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ink-dim); background:var(--bg-panel2); border-left:2px solid var(--amber); padding:8px 10px; margin-top:10px; line-height:1.6; }
+  .assumption .warn{ color:var(--rose); }
 
   .footnote{ font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ink-faint); margin-top:6px; line-height:1.6; border-top:1px solid var(--rule); padding-top:12px;}
 
@@ -100,12 +101,51 @@
 
   #furnPanel.hidden-panel{ display:none; }
 
+  /* SVG plan colors via classes so print can restyle them (inline attrs can't be overridden) */
+  .sv-grid{ stroke:#16324A; }
+  .sv-floor{ fill:rgba(191,227,255,0.02); }
+  .sv-wall{ stroke:#EAF6FF; }
+  .sv-wall-slope{ stroke:#D9A441; }
+  .sv-open-cut{ stroke:#0A1929; }
+  .sv-open{ stroke:#FFDDB0; }
+  .sv-furn{ fill:rgba(127,231,196,0.06); stroke:#7FE7C4; }
+  .sv-dim{ stroke:#FFB067; }
+  .sv-dimtxt{ fill:#FFB067; }
+  .sv-muted{ fill:#7FA0C4; }
+  .sv-muted-stroke{ stroke:#7FA0C4; }
+  .lg-wall{ background:#EAF6FF; }
+  .lg-slope{ background:#FFB067; }
+  .lg-open{ background:#FFDDB0; }
+  .lg-furn{ background:#7FE7C4; }
+
   @media print{
+    :root{
+      --ink:#111; --ink-dim:#444; --ink-faint:#777;
+      --bg:#fff; --bg-panel:#fff; --bg-panel2:#fff;
+      --grid-line:#e0e0e0; --rule:#999;
+      --line:#111; --line-bright:#111;
+      --amber:#8a5a00; --mint:#0a6b4f; --rose:#a11212;
+    }
     body{ background:#fff; color:#111; padding:0; }
     .sheet{ border-color:#111; }
     #dropzone, #printBtn, #status{ display:none !important; }
     .panel{ background:#fff; border-color:#999; break-inside:avoid; }
     #plan-svg{ background:#fff; }
+    .sv-grid{ stroke:#e5e5e5; }
+    .sv-floor{ fill:rgba(0,0,0,0.03); }
+    .sv-wall{ stroke:#111; }
+    .sv-wall-slope{ stroke:#8a5a00; }
+    .sv-open-cut{ stroke:#fff; }
+    .sv-open{ stroke:#8a5a00; }
+    .sv-furn{ fill:rgba(0,0,0,0.04); stroke:#0a6b4f; }
+    .sv-dim{ stroke:#555; }
+    .sv-dimtxt{ fill:#333; }
+    .sv-muted{ fill:#555; }
+    .sv-muted-stroke{ stroke:#555; }
+    .lg-wall{ background:#111; }
+    .lg-slope{ background:#8a5a00; }
+    .lg-open{ background:#b98a3f; }
+    .lg-furn{ background:#0a6b4f; }
   }
 </style>
 </head>
@@ -157,7 +197,7 @@
         <div class="panel">
           <h2>Zidovi</h2>
           <table id="wallsTable"><thead><tr><th>Element</th><th>Dim (m)</th><th>Bruto</th><th>Neto*</th><th>Pouzd.</th></tr></thead><tbody></tbody></table>
-          <div class="assumption">* Neto = bruto površina umanjena za otvore povezane s tim zidom preko <code>parentIdentifier</code>-a iz izvornih podataka — ne po blizini, nego po stvarnoj vezi otvor↔zid.</div>
+          <div class="assumption">* Neto = bruto površina umanjena za otvore povezane s tim zidom preko <code>parentIdentifier</code>-a iz izvornih podataka — ne po blizini, nego po stvarnoj vezi otvor↔zid. Ukupna neto vrijednost u Pregledu je zbroj ovih redaka.<span id="unlinkedNote"></span></div>
         </div>
 
         <div class="panel" id="ceilingPanel">
@@ -194,7 +234,8 @@ dropzone.addEventListener('click', () => fileInput.click());
 ['dragenter','dragover'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('drag'); }));
 ['dragleave','drop'].forEach(ev => dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('drag'); }));
 dropzone.addEventListener('drop', e => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
-fileInput.addEventListener('change', e => { const f = e.target.files[0]; if (f) handleFile(f); });
+// reset value so picking the same (possibly corrected) file re-triggers change
+fileInput.addEventListener('change', e => { const f = e.target.files[0]; if (f) handleFile(f); e.target.value = ''; });
 printBtn.addEventListener('click', () => window.print());
 furnToggle.addEventListener('change', () => {
   furnPanel.classList.toggle('hidden-panel', !furnToggle.checked);
@@ -207,9 +248,11 @@ async function handleFile(file){
   setStatus('Čitam ' + file.name + ' …');
   try {
     const text = await file.text();
-    const json = JSON.parse(text);
+    let json = JSON.parse(text);
+    // some apps export the CapturedRoom itself, without a "rooms" wrapper
+    if (!json.rooms && json.walls) json = { rooms: [json] };
     if (!json.rooms || !json.rooms.length) {
-      setStatus('JSON ne sadrži "rooms" polje — ovo ne izgleda kao CapturedRoom export.', 'err');
+      setStatus('JSON ne sadrži "rooms" ni "walls" polje — ovo ne izgleda kao CapturedRoom export.', 'err');
       return;
     }
     const data = buildData(json);
@@ -224,8 +267,13 @@ async function handleFile(file){
 
 /* ---------- Parsing / geometry helpers ---------- */
 
+function esc(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 function unwrap(obj){
   if (!obj) return { name: null, detail: null };
+  if (typeof obj === 'string') return { name: obj, detail: null };
   const key = Object.keys(obj)[0];
   return { name: key, detail: obj[key] };
 }
@@ -255,18 +303,35 @@ function localToWorld(lx, ly, lz, rows){
 }
 
 function computeArea(el){
-  if (el.polygonCorners && el.polygonCorners.length > 0) {
+  if (el.polygonCorners && el.polygonCorners.length >= 3) {
     return shoelace2D(el.polygonCorners.map(p => [p[0], p[1]]));
   }
-  return el.dimensions[0] * el.dimensions[1];
+  if (el.dimensions && el.dimensions.length >= 2) return el.dimensions[0] * el.dimensions[1];
+  return 0;
 }
 
+// upper envelope of the wall polygon: for each x keep the highest point —
+// keeps knee points even when the slope reaches floor level
 function topProfile(el){
   const ys = el.polygonCorners.map(p => p[1]);
-  const minY = Math.min(...ys);
-  const pts = el.polygonCorners.filter(p => p[1] > minY + 0.01).map(p => [p[0], p[1]]);
-  pts.sort((a,b) => a[0]-b[0]);
-  return { minY, maxY: Math.max(...ys), pts };
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const byX = new Map();
+  for (const p of el.polygonCorners) {
+    const k = Math.round(p[0]*100);
+    if (!byX.has(k) || p[1] > byX.get(k)[1]) byX.set(k, [p[0], p[1]]);
+  }
+  const pts = [...byX.values()].sort((a,b) => a[0]-b[0]);
+  return { minY, maxY, pts };
+}
+
+// slope = the top edge actually varies in height; a polygon alone isn't enough
+// (a wall can be non-rectangular because of an angled side edge, with a flat top)
+function topEdgeSloped(el){
+  if (!el.polygonCorners || el.polygonCorners.length < 3) return false;
+  const { pts } = topProfile(el);
+  if (pts.length < 2) return false;
+  const hs = pts.map(p => p[1]);
+  return (Math.max(...hs) - Math.min(...hs)) > 0.05;
 }
 
 function profileLength(pts){
@@ -284,19 +349,6 @@ function wallSegment(w){
   const p1 = localToWorld(-half, 0, 0, rows);
   const p2 = localToWorld(half, 0, 0, rows);
   return { p1: [p1[0], p1[2]], p2: [p2[0], p2[2]], len: w.dimensions[0] };
-}
-
-function elCenter2D(el){
-  const rows = reshapeMatrix(el.transform);
-  const c = localToWorld(0,0,0,rows);
-  return [c[0], c[2]];
-}
-
-function elDir2D(el, axisRowIndex){
-  const rows = reshapeMatrix(el.transform);
-  const v = [rows[axisRowIndex][0], rows[axisRowIndex][2]];
-  const len = Math.hypot(v[0], v[1]) || 1;
-  return [v[0]/len, v[1]/len];
 }
 
 function furnitureRect(o){
@@ -321,19 +373,31 @@ function floorPolygon(f){
 
 function buildData(json){
   const walls = [], openings = [], furniture = [], floors = [], sections = [];
+  // rooms in a multi-room scan can share elements — count each identifier once,
+  // otherwise areas double and shared openings get subtracted twice
+  const seen = new Set();
+  const push = (arr, el) => {
+    if (el.identifier != null) {
+      if (seen.has(el.identifier)) return;
+      seen.add(el.identifier);
+    }
+    arr.push(el);
+  };
 
   json.rooms.forEach((room, roomIdx) => {
-    (room.walls || []).forEach(w => walls.push(annotate(w, 'wall', roomIdx)));
-    (room.doors || []).forEach(o => openings.push(annotate(o, 'door', roomIdx)));
-    (room.windows || []).forEach(o => openings.push(annotate(o, 'window', roomIdx)));
-    (room.openings || []).forEach(o => openings.push(annotate(o, 'opening', roomIdx)));
-    (room.objects || []).forEach(o => furniture.push(annotate(o, 'object', roomIdx)));
-    (room.floors || []).forEach(f => floors.push(annotate(f, 'floor', roomIdx)));
+    (room.walls || []).forEach(w => push(walls, annotate(w, 'wall', roomIdx)));
+    (room.doors || []).forEach(o => push(openings, annotate(o, 'door', roomIdx)));
+    (room.windows || []).forEach(o => push(openings, annotate(o, 'window', roomIdx)));
+    (room.openings || []).forEach(o => push(openings, annotate(o, 'opening', roomIdx)));
+    (room.objects || []).forEach(o => push(furniture, annotate(o, 'object', roomIdx)));
+    (room.floors || []).forEach(f => push(floors, annotate(f, 'floor', roomIdx)));
     (room.sections || []).forEach(s => sections.push(Object.assign({ roomIdx }, s)));
   });
 
   return { walls, openings, furniture, floors, sections, roomCount: json.rooms.length };
 }
+
+const CONF_LEVELS = ['high','medium','low'];
 
 function annotate(el, kind, roomIdx){
   const cat = unwrap(el.category);
@@ -343,14 +407,14 @@ function annotate(el, kind, roomIdx){
     roomIdx,
     catName: cat.name,
     catDetail: cat.detail,
-    confLevel: conf.name || 'medium',
-    hasSlope: !!(el.polygonCorners && el.polygonCorners.length > 0),
+    confLevel: CONF_LEVELS.includes(conf.name) ? conf.name : 'medium',
+    hasSlope: kind === 'wall' && topEdgeSloped(el),
     area: computeArea(el)
   });
 }
 
 function catLabel(el){
-  const map = { wall:'Zid', floor:'Pod', window:'Prozor', opening:'Opening', object: el.catName };
+  const map = { wall:'Zid', floor:'Pod', window:'Prozor', opening:'Otvor', object: el.catName };
   if (el.kind === 'door') {
     const open = el.catDetail && el.catDetail.isOpen;
     return 'Vrata' + (open === true ? ' (otvorena)' : open === false ? ' (zatvorena)' : '');
@@ -358,29 +422,51 @@ function catLabel(el){
   return map[el.kind] || el.catName || '—';
 }
 
+// net wall area: gross minus openings linked via parentIdentifier, clamped so
+// bad data (opening bigger than its wall) can't produce a negative area
+function wallNetArea(data, w){
+  const openA = sum(data.openings.filter(o => o.parentIdentifier === w.identifier), o => o.area);
+  return Math.max(0, w.area - Math.min(openA, w.area));
+}
+
 /* ---------- Ceiling reconstruction ---------- */
 
-function reconstructCeiling(walls){
+function reconstructCeilingForRoom(walls){
+  if (!walls.length) return null;
   const profileWalls = walls.filter(w => w.hasSlope);
   const flatWalls = walls.filter(w => !w.hasSlope);
-  if (!walls.length) return null;
 
   if (!profileWalls.length) {
-    // no slope data found on any wall — assume flat ceiling = floor footprint
+    // no sloped top edge on any wall — flat ceiling = floor footprint
     return { flat: true, profiles: [] };
   }
 
-  const roomLength = flatWalls.length ? flatWalls[0].dimensions[0] : null;
+  // room depth for profile extrusion: distance between the gable (sloped) walls
+  // when we have at least two; otherwise fall back to the longest flat wall
+  let roomLength = null;
+  if (profileWalls.length >= 2) {
+    const centers = profileWalls.map(w => [w.transform[12], w.transform[14]]);
+    for (let i=0;i<centers.length;i++){
+      for (let j=i+1;j<centers.length;j++){
+        const d = Math.hypot(centers[i][0]-centers[j][0], centers[i][1]-centers[j][1]);
+        if (roomLength === null || d > roomLength) roomLength = d;
+      }
+    }
+  }
+  if (roomLength === null && flatWalls.length) {
+    roomLength = Math.max(...flatWalls.map(w => w.dimensions[0]));
+  }
+
   const profiles = profileWalls.map(w => {
     const { minY, maxY, pts } = topProfile(w);
     const len = profileLength(pts);
-    // detect slope segments: consecutive points where height changes
     const segments = [];
     for (let i=0;i<pts.length-1;i++){
       const [x1,y1] = pts[i], [x2,y2] = pts[i+1];
       const run = Math.abs(x2-x1), rise = Math.abs(y2-y1);
       const isSlope = rise > 0.02;
-      segments.push({ run, rise, isSlope, angleDeg: isSlope ? Math.degrees ? Math.degrees(Math.atan(rise/run)) : (Math.atan(rise/run)*180/Math.PI) : 0, length: Math.hypot(run,rise) });
+      const angleDeg = !isSlope ? 0 : (run > 0.001 ? Math.atan(rise/run)*180/Math.PI : 90);
+      segments.push({ run, rise, isSlope, angleDeg, length: Math.hypot(run,rise) });
     }
     const heights = pts.map(p => p[1] - minY);
     const kneeWallHeight = heights.length ? Math.min(...heights) : (maxY-minY);
@@ -391,6 +477,34 @@ function reconstructCeiling(walls){
   const ceilingArea = roomLength ? avgProfileLen * roomLength : null;
 
   return { flat: false, profiles, roomLength, avgProfileLen, ceilingArea };
+}
+
+// reconstruct per room — mixing gable profiles of one room with wall lengths
+// of another produces nonsense in multi-room scans
+function reconstructCeiling(data){
+  if (!data.walls.length) return null;
+  const roomIdxs = [...new Set(data.walls.map(w => w.roomIdx))];
+  const rooms = [];
+  let total = 0, anySloped = false, unknown = false;
+  for (const r of roomIdxs) {
+    const part = reconstructCeilingForRoom(data.walls.filter(w => w.roomIdx === r));
+    if (!part) continue;
+    part.roomIdx = r;
+    if (part.flat) {
+      part.ceilingArea = sum(data.floors.filter(f => f.roomIdx === r), f => f.area);
+    } else {
+      anySloped = true;
+    }
+    if (part.ceilingArea != null) total += part.ceilingArea; else unknown = true;
+    rooms.push(part);
+  }
+  if (!rooms.length) return null;
+  return {
+    flat: !anySloped,
+    rooms,
+    profiles: rooms.flatMap(p => p.profiles || []),
+    ceilingArea: unknown ? null : total
+  };
 }
 
 /* ---------- Rendering ---------- */
@@ -404,23 +518,31 @@ function render(data, filename){
 
   const grossWallArea = sum(data.walls, w => w.area);
   const openingArea = sum(data.openings, o => o.area);
-  const netWallArea = grossWallArea - openingArea;
+  // total net must agree with the walls table: same per-wall parentIdentifier linkage
+  const netWallArea = sum(data.walls, w => wallNetArea(data, w));
   const floorArea = sum(data.floors, f => f.area);
 
-  const ceiling = reconstructCeiling(data.walls);
-  const ceilingArea = ceiling && !ceiling.flat ? ceiling.ceilingArea : floorArea;
+  const wallIds = new Set(data.walls.map(w => w.identifier));
+  const unlinkedOpenings = data.openings.filter(o => !wallIds.has(o.parentIdentifier));
+  const unlinkedArea = sum(unlinkedOpenings, o => o.area);
+  document.getElementById('unlinkedNote').innerHTML = unlinkedArea > 0.005
+    ? ' <span class="warn">Upozorenje: ' + unlinkedOpenings.length + ' otvora (' + fmt(unlinkedArea) + ' m²) nije povezano ni s jednim zidom pa nisu odbijeni od neto površine.</span>'
+    : '';
+
+  const ceiling = reconstructCeiling(data);
+  const ceilingArea = ceiling ? ceiling.ceilingArea : null;
 
   document.getElementById('metaStrip').innerHTML =
     metaChip('Zidova', data.walls.length) + metaChip('Otvora', data.openings.length) + metaChip('Namještaja', data.furniture.length) + metaChip('Prostorija', data.roomCount);
 
   renderStats({
-    'Površina poda': fmt(floorArea) + ' m²',
-    'Strop (rekonstruirano)': fmt(ceilingArea) + ' m²',
-    'Zidovi (bruto)': fmt(grossWallArea) + ' m²',
-    'Zidovi (neto)': fmt(netWallArea) + ' m²',
-    'Otvori ukupno': fmt(openingArea) + ' m²',
-    'Strop − pod': (ceilingArea && floorArea ? (ceilingArea-floorArea >= 0 ? '+' : '') + fmt(ceilingArea-floorArea) : '—') + ' m²',
-  }, ceiling && !ceiling.flat);
+    'Površina poda': fmtArea(floorArea),
+    'Strop (rekonstruirano)': fmtArea(ceilingArea),
+    'Zidovi (bruto)': fmtArea(grossWallArea),
+    'Zidovi (neto)': fmtArea(netWallArea),
+    'Otvori ukupno': fmtArea(openingArea),
+    'Strop − pod': (ceilingArea != null && floorArea ? (ceilingArea-floorArea >= 0 ? '+' : '') + fmtArea(ceilingArea-floorArea) : '—'),
+  });
 
   renderZones(data);
   renderWallsTable(data);
@@ -431,17 +553,19 @@ function render(data, filename){
 
   document.getElementById('footnote').textContent =
     'Sve mjere izvučene izravno iz CapturedRoom JSON strukture (dimensions / transform / polygonCorners po elementu). ' +
+    'Elementi koji se ponavljaju u više prostorija broje se jednom (deduplikacija po identifieru). ' +
     'Neto površina zidova koristi parentIdentifier za povezivanje otvora s pravim zidom. ' +
-    'Strop nije izravno skeniran (RoomPlan nema "ceiling" kategoriju) — rekonstruiran je iz profila zidova s polygonCorners podacima, ' +
+    'Strop nije izravno skeniran (RoomPlan nema "ceiling" kategoriju) — rekonstruiran je po prostoriji iz profila zidova s kosim gornjim rubom, ' +
     'uz pretpostavku da se poprečni presjek proteže cijelom dužinom prostorije (jednostavan jednostrešni/dvostrešni krov). ' +
     'Za složenije oblike krova (koji se mijenjaju u oba smjera) ova metoda nije pouzdana.';
 }
 
 function metaChip(label, value){ return '<div>' + label + '<span>' + value + '</span></div>'; }
 function fmt(n){ if (n === null || n === undefined || isNaN(n)) return '—'; return n.toFixed(2); }
+function fmtArea(n){ if (n === null || n === undefined || isNaN(n)) return '—'; return n.toFixed(2) + ' m²'; }
 function sum(arr, fn){ return arr.reduce((a, x) => a + fn(x), 0); }
 
-function renderStats(obj, ceilingIsReconstructed){
+function renderStats(obj){
   const grid = document.getElementById('statsGrid');
   grid.innerHTML = Object.entries(obj).map(([label, value]) => {
     const hl = label.includes('Strop') ? ' hl' : '';
@@ -457,13 +581,10 @@ function renderZones(data){
   }
   let html = '';
   for (const s of data.sections) {
-    const nearFurn = data.furniture.filter(f => f.roomIdx === s.roomIdx)
-      .map(f => ({ f, d: Math.hypot(f.transform[12]-s.center[0], f.transform[14]-s.center[2]) }))
-      .sort((a,b) => a.d-b.d);
     const assigned = assignByNearest(data.furniture.filter(f => f.roomIdx===s.roomIdx), data.sections.filter(z=>z.roomIdx===s.roomIdx)).filter(x => x.zone === s.label).map(x => x.item);
-    const label = s.label.replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/^./, c => c.toUpperCase());
-    html += '<div class="zone-block"><div class="zone-title">' + label + '</div>';
-    html += '<div class="zone-sub">' + (assigned.length ? assigned.length + ' komada namještaja u blizini: ' + assigned.map(a=>catLabel(a)).join(' · ') : 'nema namještaja u blizini') + '</div></div>';
+    const label = String(s.label).replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/^./, c => c.toUpperCase());
+    html += '<div class="zone-block"><div class="zone-title">' + esc(label) + '</div>';
+    html += '<div class="zone-sub">' + (assigned.length ? assigned.length + ' komada namještaja u blizini: ' + assigned.map(a=>esc(catLabel(a))).join(' · ') : 'nema namještaja u blizini') + '</div></div>';
   }
   el.innerHTML = html;
 }
@@ -488,11 +609,9 @@ function renderWallsTable(data){
   const tbody = document.querySelector('#wallsTable tbody');
   if (!data.walls.length) { tbody.innerHTML = '<tr><td colspan="5" style="color:var(--ink-faint);">Nema podataka</td></tr>'; return; }
   tbody.innerHTML = data.walls.map(w => {
-    const linked = data.openings.filter(o => o.parentIdentifier === w.identifier);
-    const openArea = sum(linked, o => o.area);
-    const net = w.area - openArea;
+    const net = wallNetArea(data, w);
     const slopeBadge = w.hasSlope ? ' <span class="badge b-slope">kosina</span>' : '';
-    return '<tr><td>' + w.identifier.slice(0,8) + slopeBadge + '</td><td>' + w.dimensions[0].toFixed(2) + ' × ' + w.dimensions[1].toFixed(2) + '</td><td>' + fmt(w.area) + '</td><td>' + fmt(net) + '</td><td>' + confBadge(w.confLevel) + '</td></tr>';
+    return '<tr><td>' + esc(String(w.identifier).slice(0,8)) + slopeBadge + '</td><td>' + w.dimensions[0].toFixed(2) + ' × ' + w.dimensions[1].toFixed(2) + '</td><td>' + fmt(w.area) + '</td><td>' + fmt(net) + '</td><td>' + confBadge(w.confLevel) + '</td></tr>';
   }).join('');
 }
 
@@ -500,16 +619,25 @@ function renderCeilingPanel(ceiling){
   const el = document.getElementById('ceilingContent');
   if (!ceiling) { el.innerHTML = '<div style="color:var(--ink-faint); font-family:JetBrains Mono,monospace; font-size:11.5px;">Nema zidova za rekonstrukciju.</div>'; return; }
   if (ceiling.flat) {
-    el.innerHTML = '<div style="font-family:JetBrains Mono,monospace; font-size:11.5px; color:var(--ink-dim);">Nijedan zid nema polygonCorners podatke (nema detektiranih kosina) — strop se tretira kao ravan, jednak tlocrtu poda.</div>';
+    el.innerHTML = '<div style="font-family:JetBrains Mono,monospace; font-size:11.5px; color:var(--ink-dim);">Nijedan zid nema kosi gornji rub (nema detektiranih kosina) — strop se tretira kao ravan, jednak tlocrtu poda.</div>';
     return;
   }
   let html = '<table><thead><tr><th>Zid</th><th>Greben (puna V)</th><th>Koljenasti zid</th><th>Segmenti</th></tr></thead><tbody>';
   for (const p of ceiling.profiles) {
     const segStr = p.segments.map(s => s.isSlope ? (s.angleDeg.toFixed(1) + '° (' + s.run.toFixed(2) + '×' + s.rise.toFixed(2) + 'm)') : ('ravno ' + s.run.toFixed(2) + 'm')).join(', ');
-    html += '<tr><td>' + p.wallId.slice(0,8) + '</td><td>' + fmt(p.ridgeHeight) + ' m</td><td>' + fmt(p.kneeWallHeight) + ' m</td><td style="font-size:10.5px;">' + segStr + '</td></tr>';
+    html += '<tr><td>' + esc(String(p.wallId).slice(0,8)) + '</td><td>' + fmt(p.ridgeHeight) + ' m</td><td>' + fmt(p.kneeWallHeight) + ' m</td><td style="font-size:10.5px;">' + esc(segStr) + '</td></tr>';
   }
   html += '</tbody></table>';
-  html += '<div class="assumption">Prosječna dužina poprečnog presjeka: ' + fmt(ceiling.avgProfileLen) + ' m × dužina prostorije ' + fmt(ceiling.roomLength) + ' m = <strong style="color:var(--line-bright);">' + fmt(ceiling.ceilingArea) + ' m²</strong> ukupne površine stropa. Pretpostavka: isti poprečni presjek proteže se cijelom dužinom prostorije (jednostavan krov). Ne uzima u obzir krovove koji se mijenjaju u oba smjera (npr. "kapa" krov).</div>';
+  const multi = ceiling.rooms.filter(r => !r.flat).length > 1 || ceiling.rooms.length > 1;
+  for (const room of ceiling.rooms) {
+    if (room.flat) continue;
+    const tag = multi ? 'Prostorija ' + (room.roomIdx+1) + ': ' : '';
+    if (room.ceilingArea != null) {
+      html += '<div class="assumption">' + tag + 'prosječni presjek ' + fmt(room.avgProfileLen) + ' m × duljina prostorije ' + fmt(room.roomLength) + ' m = <strong style="color:var(--line-bright);">' + fmt(room.ceilingArea) + ' m²</strong> površine stropa. Duljina = razmak kosih (zabatnih) zidova, odnosno najdulji ravni zid kad postoji samo jedan kosi. Pretpostavka: isti poprečni presjek kroz cijelu duljinu (jednostavan krov) — nije pouzdano za krovove koji se mijenjaju u oba smjera.</div>';
+    } else {
+      html += '<div class="assumption">' + tag + '<span class="warn">nedovoljno podataka za duljinu prostorije — površina stropa nije izračunata.</span></div>';
+    }
+  }
   el.innerHTML = html;
 }
 
@@ -517,8 +645,8 @@ function renderOpeningsTable(data){
   const tbody = document.querySelector('#openingsTable tbody');
   if (!data.openings.length) { tbody.innerHTML = '<tr><td colspan="5" style="color:var(--ink-faint);">Nema podataka</td></tr>'; return; }
   tbody.innerHTML = data.openings.map(o => {
-    const parentShort = o.parentIdentifier ? o.parentIdentifier.slice(0,8) : '—';
-    return '<tr><td>' + catLabel(o) + '</td><td>' + parentShort + '</td><td>' + o.dimensions[0].toFixed(2) + ' × ' + o.dimensions[1].toFixed(2) + '</td><td>' + fmt(o.area) + '</td><td>' + confBadge(o.confLevel) + '</td></tr>';
+    const parentShort = o.parentIdentifier ? esc(String(o.parentIdentifier).slice(0,8)) : '—';
+    return '<tr><td>' + esc(catLabel(o)) + '</td><td>' + parentShort + '</td><td>' + o.dimensions[0].toFixed(2) + ' × ' + o.dimensions[1].toFixed(2) + '</td><td>' + fmt(o.area) + '</td><td>' + confBadge(o.confLevel) + '</td></tr>';
   }).join('');
 }
 
@@ -526,7 +654,7 @@ function renderFurnitureTable(furniture){
   const tbody = document.querySelector('#furnitureTable tbody');
   if (!furniture.length) { tbody.innerHTML = '<tr><td colspan="3" style="color:var(--ink-faint);">Nema podataka</td></tr>'; return; }
   tbody.innerHTML = furniture.map(f => {
-    return '<tr><td><span class="badge b-furn">' + (f.catName||'—') + '</span></td><td>' + f.dimensions.map(n=>n.toFixed(2)).join(' × ') + '</td><td>' + confBadge(f.confLevel) + '</td></tr>';
+    return '<tr><td><span class="badge b-furn">' + esc(f.catName||'—') + '</span></td><td>' + f.dimensions.map(n=>n.toFixed(2)).join(' × ') + '</td><td>' + confBadge(f.confLevel) + '</td></tr>';
   }).join('');
 }
 
@@ -537,7 +665,7 @@ function renderPlan(data, showFurniture){
   const legend = document.getElementById('legend');
 
   const segs = data.walls.map(w => wallSegment(w));
-  if (!segs.length) { svg.innerHTML = '<text x="50" y="50" fill="#7FA0C4" font-size="4">Nema zidova za crtanje</text>'; return; }
+  if (!segs.length) { svg.innerHTML = '<text x="50" y="50" class="sv-muted" font-size="4">Nema zidova za crtanje</text>'; return; }
 
   // Orientation: standard architectural floor plan convention — viewed from above,
   // north is up and east is right.
@@ -567,7 +695,7 @@ function renderPlan(data, showFurniture){
 
   let parts = [];
   const gridId = 'grid' + Math.random().toString(36).slice(2,8);
-  parts.push('<defs><pattern id="' + gridId + '" width="0.5" height="0.5" patternUnits="userSpaceOnUse"><path d="M 0.5 0 L 0 0 0 0.5" fill="none" stroke="#16324A" stroke-width="0.012"/></pattern></defs>');
+  parts.push('<defs><pattern id="' + gridId + '" width="0.5" height="0.5" patternUnits="userSpaceOnUse"><path d="M 0.5 0 L 0 0 0 0.5" fill="none" class="sv-grid" stroke-width="0.012"/></pattern></defs>');
   parts.push('<rect x="0" y="0" width="' + w + '" height="' + h + '" fill="url(#' + gridId + ')"/>');
 
   const wallStroke = Math.max(w, h) * 0.012;
@@ -575,7 +703,7 @@ function renderPlan(data, showFurniture){
   // floor outline (subtle fill)
   for (const f of data.floors) {
     const poly = floorPolygon(f).map(p => toSvg(...p));
-    parts.push('<polygon points="' + poly.map(p=>p.join(',')).join(' ') + '" fill="rgba(191,227,255,0.02)" stroke="none"/>');
+    parts.push('<polygon points="' + poly.map(p=>p.join(',')).join(' ') + '" class="sv-floor" stroke="none"/>');
   }
 
   // walls, with slope indicator
@@ -583,9 +711,9 @@ function renderPlan(data, showFurniture){
     const s = wallSegment(wg);
     const [x1, y1] = toSvg(...s.p1);
     const [x2, y2] = toSvg(...s.p2);
-    const color = wg.hasSlope ? '#D9A441' : '#EAF6FF';
+    const cls = wg.hasSlope ? 'sv-wall-slope' : 'sv-wall';
     const dash = wg.confLevel === 'low' ? (wallStroke*1.2) + ',' + (wallStroke*0.8) : 'none';
-    parts.push('<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + color + '" stroke-width="' + wallStroke + '" stroke-linecap="square" ' + (dash!=='none' ? 'stroke-dasharray="'+dash+'"' : '') + '/>');
+    parts.push('<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" class="' + cls + '" stroke-width="' + wallStroke + '" stroke-linecap="square" ' + (dash!=='none' ? 'stroke-dasharray="'+dash+'"' : '') + '/>');
   }
 
   // openings
@@ -593,15 +721,15 @@ function renderPlan(data, showFurniture){
     const s = wallSegment(o);
     const [x1, y1] = toSvg(...s.p1);
     const [x2, y2] = toSvg(...s.p2);
-    parts.push('<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#0A1929" stroke-width="' + (wallStroke*1.6) + '" stroke-linecap="butt"/>');
-    parts.push('<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="#FFDDB0" stroke-width="' + (wallStroke*0.9) + '" stroke-linecap="butt"/>');
+    parts.push('<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" class="sv-open-cut" stroke-width="' + (wallStroke*1.6) + '" stroke-linecap="butt"/>');
+    parts.push('<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" class="sv-open" stroke-width="' + (wallStroke*0.9) + '" stroke-linecap="butt"/>');
   }
 
   // furniture
   if (showFurniture) {
     for (const f of data.furniture) {
       const corners = furnitureRect(f).map(p => toSvg(...p));
-      parts.push('<polygon points="' + corners.map(p=>p.join(',')).join(' ') + '" fill="rgba(127,231,196,0.06)" stroke="#7FE7C4" stroke-width="' + (wallStroke*0.5) + '" stroke-dasharray="' + (wallStroke*0.9) + ',' + (wallStroke*0.9) + '"/>');
+      parts.push('<polygon points="' + corners.map(p=>p.join(',')).join(' ') + '" class="sv-furn" stroke-width="' + (wallStroke*0.5) + '" stroke-dasharray="' + (wallStroke*0.9) + ',' + (wallStroke*0.9) + '"/>');
     }
   }
 
@@ -625,20 +753,20 @@ function renderPlan(data, showFurniture){
     const off = Math.max(w,h) * 0.045;
     const ox1 = x1 + nx*off, oy1 = y1 + ny*off, ox2 = x2 + nx*off, oy2 = y2 + ny*off;
     const tick = Math.max(w,h) * 0.012;
-    parts.push('<g stroke="#FFB067" stroke-width="' + (wallStroke*0.35) + '" opacity="0.85">');
+    parts.push('<g class="sv-dim" stroke-width="' + (wallStroke*0.35) + '" opacity="0.85">');
     parts.push('<line x1="' + ox1 + '" y1="' + oy1 + '" x2="' + ox2 + '" y2="' + oy2 + '"/>');
     parts.push('<line x1="' + x1 + '" y1="' + y1 + '" x2="' + ox1 + '" y2="' + oy1 + '" stroke-dasharray="' + tick + ',' + tick + '"/>');
     parts.push('<line x1="' + x2 + '" y1="' + y2 + '" x2="' + ox2 + '" y2="' + oy2 + '" stroke-dasharray="' + tick + ',' + tick + '"/>');
     parts.push('</g>');
     const mxl = (ox1+ox2)/2, myl = (oy1+oy2)/2;
-    parts.push('<text x="' + mxl + '" y="' + myl + '" fill="#FFB067" font-size="' + fontSize + '" font-family="JetBrains Mono, monospace" text-anchor="middle" dy="' + (-fontSize*0.35) + '">' + s.len.toFixed(2) + ' m</text>');
+    parts.push('<text x="' + mxl + '" y="' + myl + '" class="sv-dimtxt" font-size="' + fontSize + '" font-family="JetBrains Mono, monospace" text-anchor="middle" dy="' + (-fontSize*0.35) + '">' + s.len.toFixed(2) + ' m</text>');
   }
 
   // zone labels
   for (const s of data.sections) {
     const [x, y] = toSvg(s.center[0], s.center[2]);
-    const label = s.label.replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/^./, c => c.toUpperCase());
-    parts.push('<text x="' + x + '" y="' + y + '" fill="#7FA0C4" font-size="' + (fontSize*1.2) + '" font-family="Space Grotesk, sans-serif" text-anchor="middle" opacity="0.8">' + label + '</text>');
+    const label = String(s.label).replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/^./, c => c.toUpperCase());
+    parts.push('<text x="' + x + '" y="' + y + '" class="sv-muted" font-size="' + (fontSize*1.2) + '" font-family="Space Grotesk, sans-serif" text-anchor="middle" opacity="0.8">' + esc(label) + '</text>');
   }
 
   // compass — with the direct top-down projection above (no rotation, no flip),
@@ -647,20 +775,20 @@ function renderPlan(data, showFurniture){
 
   const cx = w - Math.max(w,h)*0.14, cy = Math.max(w,h)*0.10, cr = Math.max(w,h)*0.04;
   parts.push('<g transform="rotate(' + compassRotationDeg.toFixed(1) + ' ' + cx + ' ' + cy + ')">' +
-    '<g stroke="#7FA0C4" fill="none" stroke-width="' + (wallStroke*0.4) + '">' +
+    '<g class="sv-muted-stroke" fill="none" stroke-width="' + (wallStroke*0.4) + '">' +
     '<line x1="' + cx + '" y1="' + (cy+cr) + '" x2="' + cx + '" y2="' + (cy-cr) + '"/>' +
-    '<polygon points="' + cx + ',' + (cy-cr) + ' ' + (cx-cr*0.28) + ',' + (cy-cr*0.55) + ' ' + (cx+cr*0.28) + ',' + (cy-cr*0.55) + '" fill="#7FA0C4"/></g>' +
-    '<text x="' + cx + '" y="' + (cy-cr-fontSize*0.4) + '" fill="#7FA0C4" font-size="' + (fontSize*0.9) + '" font-family="JetBrains Mono, monospace" text-anchor="middle">N</text>' +
+    '<polygon points="' + cx + ',' + (cy-cr) + ' ' + (cx-cr*0.28) + ',' + (cy-cr*0.55) + ' ' + (cx+cr*0.28) + ',' + (cy-cr*0.55) + '" class="sv-muted"/></g>' +
+    '<text x="' + cx + '" y="' + (cy-cr-fontSize*0.4) + '" class="sv-muted" font-size="' + (fontSize*0.9) + '" font-family="JetBrains Mono, monospace" text-anchor="middle">N</text>' +
     '</g>');
-  parts.push('<text x="' + cx + '" y="' + (cy+cr+fontSize*1.1) + '" fill="#7FA0C4" font-size="' + (fontSize*0.55) + '" font-family="JetBrains Mono, monospace" text-anchor="middle" opacity="0.65">procjena</text>');
+  parts.push('<text x="' + cx + '" y="' + (cy+cr+fontSize*1.1) + '" class="sv-muted" font-size="' + (fontSize*0.55) + '" font-family="JetBrains Mono, monospace" text-anchor="middle" opacity="0.65">procjena</text>');
 
   svg.innerHTML = parts.join('');
 
   legend.innerHTML =
-    '<span><span class="sw" style="background:#EAF6FF;"></span>Ravan zid</span>' +
-    '<span><span class="sw" style="background:#FFB067;"></span>Zid s kosinom</span>' +
-    '<span><span class="sw" style="background:#FFDDB0;"></span>Otvor</span>' +
-    (showFurniture ? '<span><span class="sw" style="background:#7FE7C4;"></span>Namještaj</span>' : '');
+    '<span><span class="sw lg-wall"></span>Ravan zid</span>' +
+    '<span><span class="sw lg-slope"></span>Zid s kosinom</span>' +
+    '<span><span class="sw lg-open"></span>Otvor</span>' +
+    (showFurniture ? '<span><span class="sw lg-furn"></span>Namještaj</span>' : '');
 }
 </script>
 </body>
