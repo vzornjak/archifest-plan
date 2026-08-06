@@ -93,7 +93,16 @@ function currentScreenAngle(){
 let devRaf = false;
 function onDevOrientation(e){
   let raw = null;
-  if (e.webkitCompassHeading != null) raw = e.webkitCompassHeading;     // iOS: true bearing of device top
+  // iOS: physically verified (two readings, one after a real 90deg clockwise
+  // turn) that webkitCompassHeading on this device increases COUNTER-
+  // clockwise — opposite of the documented CLHeading convention — so it's
+  // inverted here. Facing true north read 359deg (should be ~0); after
+  // turning 90deg clockwise it read 270deg (should be ~90, not decrease).
+  // 360-x flips it back to the standard clockwise-increasing convention
+  // the rest of this file assumes. Android's alpha path already applies
+  // its own 360-x conversion for unrelated reasons and is left as-is
+  // (untested here) — do not double-flip it if this ever needs revisiting.
+  if (e.webkitCompassHeading != null) raw = (360 - e.webkitCompassHeading) % 360;
   else if (e.absolute && e.alpha != null) raw = 360 - e.alpha;          // Android absolute orientation
   if (raw == null) return;
   const screenAngle = currentScreenAngle();
@@ -229,7 +238,8 @@ function render(data, filename){
     'Tlocrt je poravnat s najdužim zidom; sjever pokazuje kompasna ruža u legendi. Kad je sjever poznat, između dvije jednako ravne orijentacije ' +
     '(rotirane 180°, isti tlocrt) bira se ona gdje je sjever bliže gore. Auto-odabir Portrait/Landscape (kad nije ručno postavljen) reagira odmah na ' +
     'fizičku rotaciju ekrana. Živa strelica (🧭) dodatno kompenzira trenutni kut rotacije ekrana (screen.orientation) — sirovi kompasni signal mjeri ' +
-    'fizički vrh uređaja, ne trenutnu orijentaciju sadržaja na ekranu. ' +
+    'fizički vrh uređaja, ne trenutnu orijentaciju sadržaja na ekranu. Smjer rasta signala je fizički provjeren i invertiran gdje je bilo potrebno — ' +
+    'obrnut od dokumentirane konvencije na testiranom uređaju. ' +
     'Simbol otvaranja vrata (krilo + luk) je konvencija — sken ne bilježi stranu šarki ni smjer otvaranja. ' +
     'Adresa se dohvaća reverse geocodingom (OpenStreetMap Nominatim) — jedino se koordinate iz meta.json šalju tom servisu; sken ostaje lokalno.';
 }
