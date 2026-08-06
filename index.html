@@ -48,7 +48,7 @@
     .layout{ grid-template-columns: 1fr; }
   }
 
-  .panel{ background:var(--bg-panel); border:1px solid var(--rule); border-radius:var(--radius); padding:16px 18px; margin-bottom:16px; }
+  .panel{ background:var(--bg-panel); border:1px solid var(--rule); border-radius:var(--radius); padding:16px 18px; margin-bottom:16px; overflow-x:auto; }
   .panel h2{ font-size:12px; text-transform:uppercase; letter-spacing:0.08em; color:var(--ink-dim); margin:0 0 12px 0; font-weight:600; display:flex; align-items:center; gap:8px; }
   .panel h2::after{ content:''; flex:1; height:1px; background:var(--rule); }
   .panel h2 .toggle-wrap{ font-family:'JetBrains Mono',monospace; font-size:10px; text-transform:none; letter-spacing:0; display:flex; align-items:center; gap:6px; }
@@ -101,9 +101,17 @@
 
   #furnPanel.hidden-panel{ display:none; }
 
-  .rot-controls{ display:flex; gap:4px; }
-  .rot-controls button{ font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--ink-dim); background:transparent; border:1px solid var(--ink-faint); border-radius:var(--radius); padding:2px 7px; cursor:pointer; }
-  .rot-controls button:hover{ border-color:var(--line); color:var(--line-bright); }
+  .mini-btn{ font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--ink-dim); background:transparent; border:1px solid var(--ink-faint); border-radius:var(--radius); padding:2px 8px; cursor:pointer; line-height:1.4; }
+  .mini-btn:hover{ border-color:var(--line); color:var(--line-bright); }
+  .mini-btn.active{ border-color:var(--mint); color:var(--mint); }
+
+  @media (max-width: 600px){
+    body{ padding:8px; }
+    .sheet{ padding:12px; }
+    .titleblock h1{ font-size:18px; }
+    table{ font-size:10.5px; }
+    .stats{ grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); }
+  }
 
   /* SVG plan colors via classes so print can restyle them (inline attrs can't be overridden) */
   .sv-grid{ stroke:#16324A; }
@@ -117,6 +125,7 @@
   .sv-dimtxt{ fill:#FFB067; }
   .sv-muted{ fill:#7FA0C4; }
   .sv-muted-stroke{ stroke:#7FA0C4; }
+  .sv-live{ stroke:#7FE7C4; fill:#7FE7C4; }
   .lg-wall{ background:#EAF6FF; }
   .lg-slope{ background:#FFB067; }
   .lg-open{ background:#FFDDB0; }
@@ -132,7 +141,7 @@
     }
     body{ background:#fff; color:#111; padding:0; }
     .sheet{ border-color:#111; }
-    #dropzone, #printBtn, #status, .toggle-wrap, .rot-controls{ display:none !important; }
+    #dropzone, #printBtn, #status, .toggle-wrap, .mini-btn{ display:none !important; }
     .panel{ background:#fff; border-color:#999; break-inside:avoid; }
     #plan-svg{ background:#fff; }
     .sv-grid{ stroke:#e5e5e5; }
@@ -146,6 +155,7 @@
     .sv-dimtxt{ fill:#333; }
     .sv-muted{ fill:#555; }
     .sv-muted-stroke{ stroke:#555; }
+    .sv-live{ stroke:#0a6b4f; fill:#0a6b4f; }
     .lg-wall{ background:#111; }
     .lg-slope{ background:#8a5a00; }
     .lg-open{ background:#b98a3f; }
@@ -182,19 +192,19 @@
       <div id="plan-wrap" class="panel" style="margin-bottom:0;">
         <h2>Tlocrt
           <span class="toggle-wrap"><label class="switch"><input type="checkbox" id="furnToggle"><span class="slider"></span></label>Namještaj</span>
-          <span class="toggle-wrap"><label class="switch"><input type="checkbox" id="alignToggle" checked><span class="slider"></span></label>Poravnaj sa zidom</span>
-          <span class="rot-controls">
-            <button type="button" data-rot="-90" title="Rotiraj 90° ulijevo">&#10226;90</button>
-            <button type="button" data-rot="-5" title="Rotiraj 5° ulijevo">&minus;5</button>
-            <button type="button" data-rot="5" title="Rotiraj 5° udesno">+5</button>
-            <button type="button" data-rot="90" title="Rotiraj 90° udesno">&#10227;90</button>
-          </span>
+          <span class="toggle-wrap"><label class="switch"><input type="checkbox" id="landToggle"><span class="slider"></span></label>Landscape</span>
+          <button type="button" id="devCompassBtn" class="mini-btn" title="Prikaži trenutnu orijentaciju uređaja u kompasu">🧭</button>
         </h2>
         <svg id="plan-svg" viewBox="0 0 100 100"></svg>
         <div class="legend" id="legend"></div>
       </div>
 
       <div>
+        <div class="panel" id="metaPanel" style="display:none;">
+          <h2>Podaci o skenu</h2>
+          <div id="metaContent"></div>
+        </div>
+
         <div class="panel">
           <h2>Pregled</h2>
           <div class="stats" id="statsGrid"></div>
@@ -253,15 +263,62 @@ furnToggle.addEventListener('change', () => {
   if (window.__lastData) renderPlan(window.__lastData, furnToggle.checked);
 });
 
-const alignToggle = document.getElementById('alignToggle');
-const planRot = { extraDeg: 0 };
-alignToggle.addEventListener('change', () => {
+const landToggle = document.getElementById('landToggle');
+let orientationOverride = null; // null = auto (fit room's long side to the panel's long side)
+landToggle.addEventListener('change', () => {
+  orientationOverride = landToggle.checked ? 'landscape' : 'portrait';
   if (window.__lastData) renderPlan(window.__lastData, furnToggle.checked);
 });
-document.querySelectorAll('.rot-controls button').forEach(b => b.addEventListener('click', () => {
-  planRot.extraDeg = (planRot.extraDeg + Number(b.dataset.rot)) % 360;
-  if (window.__lastData) renderPlan(window.__lastData, furnToggle.checked);
-}));
+
+/* ---------- Live device compass ---------- */
+
+const devBtn = document.getElementById('devCompassBtn');
+const devCompass = { on: false, heading: null };
+if (!('DeviceOrientationEvent' in window)) devBtn.style.display = 'none';
+devBtn.addEventListener('click', async () => {
+  if (devCompass.on) { stopDevCompass(); return; }
+  try {
+    // iOS requires an explicit permission request from a user gesture
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      const p = await DeviceOrientationEvent.requestPermission();
+      if (p !== 'granted') { setStatus('Pristup kompasu uređaja odbijen.', 'err'); return; }
+    }
+    window.addEventListener('deviceorientationabsolute', onDevOrientation);
+    window.addEventListener('deviceorientation', onDevOrientation);
+    devCompass.on = true;
+    devBtn.classList.add('active');
+  } catch (e) {
+    setStatus('Kompas uređaja nije dostupan: ' + e.message, 'err');
+  }
+});
+function stopDevCompass(){
+  window.removeEventListener('deviceorientationabsolute', onDevOrientation);
+  window.removeEventListener('deviceorientation', onDevOrientation);
+  devCompass.on = false;
+  devCompass.heading = null;
+  devBtn.classList.remove('active');
+  const n = document.getElementById('devNeedle');
+  if (n) n.style.display = 'none';
+}
+let devRaf = false;
+function onDevOrientation(e){
+  let h = null;
+  if (e.webkitCompassHeading != null) h = e.webkitCompassHeading;       // iOS: true bearing of device top
+  else if (e.absolute && e.alpha != null) h = 360 - e.alpha;            // Android absolute orientation
+  if (h == null) return;
+  devCompass.heading = h;
+  if (!devRaf) { devRaf = true; requestAnimationFrame(updateDevNeedle); }
+}
+function updateDevNeedle(){
+  devRaf = false;
+  const n = document.getElementById('devNeedle');
+  const st = window.__compassState;
+  if (!n || !devCompass.on || devCompass.heading == null) return;
+  if (!st || st.northB == null) { n.style.display = 'none'; return; }  // plan north unknown
+  const ang = ((st.roseDeg + devCompass.heading) % 360 + 360) % 360;
+  n.style.display = '';
+  n.setAttribute('transform', 'rotate(' + ang + ' ' + st.cx + ' ' + st.cy + ')');
+}
 
 function setStatus(msg, cls){ statusEl.textContent = msg; statusEl.className = cls || ''; }
 
@@ -277,7 +334,6 @@ async function handleFile(file){
     // meta.json (app metadata with compass heading), not a scan
     if (json.headingDegrees != null && !json.rooms && !json.walls) {
       window.__meta = json;
-      alignToggle.checked = false; // default to true-north view once heading is known
       setStatus('meta.json učitan — kompasni smjer poznat (heading ' + json.headingDegrees.toFixed(1) + '°).', 'ok');
       if (window.__lastData) render(window.__lastData, window.__lastName);
       return;
@@ -292,6 +348,7 @@ async function handleFile(file){
     setStatus('Učitano — ' + data.walls.length + ' zidova, ' + data.openings.length + ' otvora, ' + data.furniture.length + ' komada namještaja.' + (window.__meta ? ' Pravi sjever iz meta.json.' : ''), 'ok');
     window.__lastData = data;
     window.__lastName = file.name;
+    orientationOverride = null; // back to auto orientation for a new scan
     render(data, file.name);
   } catch (err) {
     console.error(err);
@@ -565,7 +622,8 @@ function reconstructCeiling(data){
 /* ---------- Rendering ---------- */
 
 function render(data, filename){
-  document.getElementById('projTitle').textContent = filename.replace(/\.json$/i, '');
+  document.getElementById('projTitle').textContent =
+    (window.__meta && window.__meta.name) ? window.__meta.name : filename.replace(/\.json$/i, '');
   document.getElementById('projSub').textContent = 'CapturedRoom JSON · ' + data.roomCount + ' prostorija · parsirano lokalno';
   reportEl.classList.add('show');
   printBtn.style.display = 'inline-block';
@@ -607,6 +665,7 @@ function render(data, filename){
   }
   renderStats(statsObj);
 
+  renderMetaPanel();
   renderZones(data);
   renderWallsTable(data);
   renderCeilingPanel(ceiling);
@@ -624,11 +683,54 @@ function render(data, filename){
     'Orijentacija: pravi sjever = meta.json heading − referenceOriginTransform rotacija + 90° ' +
     '(RoomPlan interno poravnava koordinate sa zidovima, a korekcija od +90° je kalibrirana fizičkom provjerom kompasom: ' +
     'app bilježi sirovi CLHeading koji mjeri vrh uređaja, ne smjer kamere). ' +
-    'Bez meta.json orijentacija je proizvoljna po sesiji skeniranja — strelica N tada prati pretpostavljeni sjever; ' +
-    'ručnom rotacijom poravnaj tlocrt sa stvarnim stanjem.';
+    'Bez meta.json orijentacija je proizvoljna po sesiji skeniranja — kompas tada prati pretpostavljeni sjever. ' +
+    'Adresa se dohvaća reverse geocodingom (OpenStreetMap Nominatim) — jedino se koordinate iz meta.json šalju tom servisu; sken ostaje lokalno.';
 }
 
 function metaChip(label, value){ return '<div>' + label + '<span>' + value + '</span></div>'; }
+
+/* ---------- Scan metadata panel (meta.json) ---------- */
+
+const APPLE_EPOCH_MS = 978307200000; // 2001-01-01 UTC — Apple/Core Data reference date
+
+function renderMetaPanel(){
+  const panel = document.getElementById('metaPanel');
+  const m = window.__meta;
+  if (!m) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+  const rows = [];
+  if (m.name) rows.push(['Naziv', esc(m.name)]);
+  if (m.createdAt != null) {
+    rows.push(['Datum', new Date(APPLE_EPOCH_MS + m.createdAt*1000).toLocaleString('hr-HR', { dateStyle: 'medium', timeStyle: 'short' })]);
+  }
+  if (m.latitude != null && m.longitude != null) {
+    rows.push(['Koordinate', m.latitude.toFixed(6) + ', ' + m.longitude.toFixed(6) +
+      ' · <a href="https://maps.apple.com/?ll=' + m.latitude + ',' + m.longitude + '" target="_blank" rel="noopener" style="color:var(--amber);">Apple Maps</a>']);
+    rows.push(['Adresa', '<span id="metaAddr">učitavam…</span>']);
+  }
+  if (m.headingDegrees != null) rows.push(['Heading', m.headingDegrees.toFixed(1) + '°']);
+  if (m.roomCount != null) rows.push(['Prostorija', String(m.roomCount)]);
+  document.getElementById('metaContent').innerHTML =
+    '<table><tbody>' + rows.map(r => '<tr><th style="width:32%;">' + r[0] + '</th><td>' + r[1] + '</td></tr>').join('') + '</tbody></table>';
+  if (m.latitude != null && m.longitude != null) fetchAddress(m.latitude, m.longitude);
+}
+
+// reverse geocoding via OpenStreetMap Nominatim (free, no key); only the
+// coordinates leave the browser — the scan itself stays local
+let addrCache = { key: null, text: null };
+async function fetchAddress(lat, lon){
+  const key = lat.toFixed(5) + ',' + lon.toFixed(5);
+  const el = () => document.getElementById('metaAddr');
+  if (addrCache.key === key) { if (el()) el().textContent = addrCache.text; return; }
+  try {
+    const r = await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&accept-language=hr&zoom=18&lat=' + lat + '&lon=' + lon);
+    const j = await r.json();
+    addrCache = { key, text: j.display_name || 'adresa nedostupna' };
+  } catch (e) {
+    addrCache = { key, text: 'adresa nedostupna' };
+  }
+  if (el()) el().textContent = addrCache.text;
+}
 function fmt(n){ if (n === null || n === undefined || isNaN(n)) return '—'; return n.toFixed(2); }
 function fmtArea(n){ if (n === null || n === undefined || isNaN(n)) return '—'; return n.toFixed(2) + ' m²'; }
 function sum(arr, fn){ return arr.reduce((a, x) => a + fn(x), 0); }
@@ -743,14 +845,28 @@ function renderPlan(data, showFurniture){
   // and the compass rotates together with the plan (it tracks the assumed north
   // direction, it does not claim true north).
   const northB = northBearingDeg(); // bearing of world -Z, or null without meta.json
-  let rotDeg = planRot.extraDeg;
-  if (alignToggle.checked && data.walls.length) {
-    const longest = data.walls.reduce((a,b) => (b.dimensions[0] > a.dimensions[0] ? b : a));
-    const ls = wallSegment(longest);
-    rotDeg -= Math.atan2(ls.p2[1]-ls.p1[1], ls.p2[0]-ls.p1[0]) * 180/Math.PI;
-  } else if (northB != null) {
-    rotDeg += northB; // true north up
+  const baseRot = northB != null ? northB : 0; // true north up when known
+  // Orientation: pick the 90° step that fits the room's long side to the panel's
+  // long side (auto), or honor the Landscape switch. The compass rotates with the
+  // plan either way, so north stays correct.
+  const bboxFor = deg => {
+    const t = deg*Math.PI/180, c = Math.cos(t), s = Math.sin(t);
+    const xs = [], ys = [];
+    for (const sg of segs) { for (const p of [sg.p1, sg.p2]) { xs.push(p[0]*c - p[1]*s); ys.push(p[0]*s + p[1]*c); } }
+    return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+  };
+  const b0 = bboxFor(baseRot);
+  const wideRot = b0.w >= b0.h ? baseRot : baseRot + 90;
+  const tallRot = b0.w >= b0.h ? baseRot + 90 : baseRot;
+  let wantLandscape;
+  if (orientationOverride) {
+    wantLandscape = orientationOverride === 'landscape';
+  } else {
+    const panelW = svg.parentElement ? svg.parentElement.clientWidth : 800;
+    wantLandscape = panelW >= window.innerHeight * 0.7;
+    landToggle.checked = wantLandscape;
   }
+  const rotDeg = wantLandscape ? wideRot : tallRot;
   const th = rotDeg * Math.PI/180, cosT = Math.cos(th), sinT = Math.sin(th);
   const projX = (x, z) => x*cosT - z*sinT;
   const projY = (x, z) => x*sinT + z*cosT;
@@ -845,28 +961,57 @@ function renderPlan(data, showFurniture){
     parts.push('<text x="' + x + '" y="' + y + '" class="sv-muted" font-size="' + (fontSize*1.2) + '" font-family="Space Grotesk, sans-serif" text-anchor="middle" opacity="0.8">' + esc(label) + '</text>');
   }
 
-  // compass — points at true north when meta.json heading is known (north is at
-  // bearing 0, i.e. rotDeg - northB on screen); otherwise it tracks the assumed
-  // north (world -Z) and rotates together with the plan
-  const compassRotationDeg = (((rotDeg - (northB != null ? northB : 0)) % 360) + 360) % 360;
+  // compass rose — its N mark points at true north when meta.json heading is
+  // known (north is at rotDeg - northB on screen); otherwise it tracks the
+  // assumed north (world -Z) and rotates together with the plan
+  const roseDeg = (((rotDeg - (northB != null ? northB : 0)) % 360) + 360) % 360;
   const compassLabel = northB != null ? 'meta.json' : 'procjena';
-
-  const cx = w - Math.max(w,h)*0.14, cy = Math.max(w,h)*0.10, cr = Math.max(w,h)*0.04;
-  parts.push('<g transform="rotate(' + compassRotationDeg.toFixed(1) + ' ' + cx + ' ' + cy + ')">' +
-    '<g class="sv-muted-stroke" fill="none" stroke-width="' + (wallStroke*0.4) + '">' +
-    '<line x1="' + cx + '" y1="' + (cy+cr) + '" x2="' + cx + '" y2="' + (cy-cr) + '"/>' +
-    '<polygon points="' + cx + ',' + (cy-cr) + ' ' + (cx-cr*0.28) + ',' + (cy-cr*0.55) + ' ' + (cx+cr*0.28) + ',' + (cy-cr*0.55) + '" class="sv-muted"/></g>' +
-    '<text x="' + cx + '" y="' + (cy-cr-fontSize*0.4) + '" class="sv-muted" font-size="' + (fontSize*0.9) + '" font-family="JetBrains Mono, monospace" text-anchor="middle">N</text>' +
-    '</g>');
-  parts.push('<text x="' + cx + '" y="' + (cy+cr+fontSize*1.1) + '" class="sv-muted" font-size="' + (fontSize*0.55) + '" font-family="JetBrains Mono, monospace" text-anchor="middle" opacity="0.65">' + compassLabel + '</text>');
+  const roseR = Math.max(w,h) * 0.065;
+  const roseCx = w - roseR*1.35, roseCy = h - roseR*1.75;
+  window.__compassState = { roseDeg, northB, cx: roseCx, cy: roseCy };
+  compassRose(parts, roseCx, roseCy, roseR, roseDeg, wallStroke*0.4, fontSize, compassLabel);
 
   svg.innerHTML = parts.join('');
+  updateDevNeedle();
 
   legend.innerHTML =
     '<span><span class="sw lg-wall"></span>Ravan zid</span>' +
     '<span><span class="sw lg-slope"></span>Zid s kosinom</span>' +
     '<span><span class="sw lg-open"></span>Otvor</span>' +
     (showFurniture ? '<span><span class="sw lg-furn"></span>Namještaj</span>' : '');
+}
+
+// a proper compass rose: rings, degree ticks, cardinal letters and a needle;
+// rotated as a whole by roseDeg (letters counter-rotated to stay upright)
+function compassRose(parts, cx, cy, r, roseDeg, stroke, fontSize, label){
+  parts.push('<g class="sv-muted-stroke" fill="none" stroke-width="' + stroke + '">' +
+    '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '"/>' +
+    '<circle cx="' + cx + '" cy="' + cy + '" r="' + (r*0.7) + '" opacity="0.45"/>' +
+    '</g>');
+  let g = '<g transform="rotate(' + roseDeg.toFixed(2) + ' ' + cx + ' ' + cy + ')">';
+  for (let a = 0; a < 360; a += 30) {
+    const major = a % 90 === 0;
+    const rad = a * Math.PI/180, sx = Math.sin(rad), sy = -Math.cos(rad);
+    const r1 = r * (major ? 0.80 : 0.88), r2 = r * 0.97;
+    g += '<line class="sv-muted-stroke" stroke-width="' + (stroke * (major ? 1.3 : 0.7)) + '" x1="' + (cx + sx*r1) + '" y1="' + (cy + sy*r1) + '" x2="' + (cx + sx*r2) + '" y2="' + (cy + sy*r2) + '"/>';
+  }
+  for (const [t, a] of [['N',0],['E',90],['S',180],['W',270]]) {
+    const rad = a * Math.PI/180;
+    const x = cx + Math.sin(rad) * r * 0.55, y = cy - Math.cos(rad) * r * 0.55;
+    const cls = t === 'N' ? 'sv-dimtxt' : 'sv-muted';
+    g += '<text x="' + x + '" y="' + y + '" class="' + cls + '" font-size="' + (fontSize * (t === 'N' ? 0.85 : 0.62)) + '" font-family="JetBrains Mono, monospace" text-anchor="middle" dominant-baseline="central" transform="rotate(' + (-roseDeg).toFixed(2) + ' ' + x + ' ' + y + ')">' + t + '</text>';
+  }
+  // needle: north half highlighted, south half muted
+  g += '<polygon class="sv-dimtxt" points="' + cx + ',' + (cy - r*0.42) + ' ' + (cx - r*0.09) + ',' + cy + ' ' + (cx + r*0.09) + ',' + cy + '"/>';
+  g += '<polygon class="sv-muted" opacity="0.55" points="' + cx + ',' + (cy + r*0.42) + ' ' + (cx - r*0.09) + ',' + cy + ' ' + (cx + r*0.09) + ',' + cy + '"/>';
+  g += '</g>';
+  parts.push(g);
+  // live device-orientation needle (hidden until the device compass is enabled)
+  parts.push('<g id="devNeedle" style="display:none">' +
+    '<line class="sv-live" x1="' + cx + '" y1="' + cy + '" x2="' + cx + '" y2="' + (cy - r*0.62) + '" stroke-width="' + (stroke*1.5) + '" stroke-linecap="round"/>' +
+    '<circle class="sv-live" cx="' + cx + '" cy="' + (cy - r*0.62) + '" r="' + (stroke*2.2) + '"/>' +
+    '</g>');
+  parts.push('<text x="' + cx + '" y="' + (cy + r + fontSize*0.85) + '" class="sv-muted" font-size="' + (fontSize*0.55) + '" font-family="JetBrains Mono, monospace" text-anchor="middle" opacity="0.65">' + label + '</text>');
 }
 </script>
 </body>
