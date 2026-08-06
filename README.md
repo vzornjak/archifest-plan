@@ -11,8 +11,9 @@ Alat koji iz RoomPlan (LiDAR) JSON skeniranja prostorije generira tehnički izvj
   - Bruto i neto površinu zidova (neto = bruto minus otvori, povezano preko `parentIdentifier`)
   - Rekonstruira površinu stropa iz profila kosih zidova (podržava proizvoljan broj kosina po zidu)
   - Detektira zidove s kosinom (`polygonCorners`) i prikazuje kut/dimenzije kosine
-- Crta arhitektonski tlocrt (SVG) — pogled odozgo sa sjeverom iz meta.json; Portrait/Landscape prekidač (auto prema obliku prostorije i panela)
-- Kompasna ruža (krug, oznake stupnjeva, N/E/S/W) koja se rotira zajedno s tlocrtom; 🧭 gumb uz dopuštenje prikazuje živu orijentaciju uređaja unutar ruže (iOS/Android, HTTPS)
+- Crta arhitektonski tlocrt (SVG) — uvijek ravan, poravnat s najdužim zidom; Portrait/Landscape prekidač bira orijentaciju (auto prema panelu). Sjever pokazuje kompasna ruža u legendi
+- Kompasna ruža (krug, oznake stupnjeva, N/E/S/W) u legendi ispod tlocrta; 🧭 gumb uz dopuštenje prikazuje malu živu strelicu s orijentacijom uređaja (iOS/Android, HTTPS)
+- Vrata s klasičnim simbolom otvaranja (krilo + luk) — strana šarke je konvencija jer sken bilježi samo isOpen; kosi dio zida označen sivo samo na stvarnom rasponu kosine
 - Panel "Podaci o skenu" iz meta.json: naziv, datum, koordinate, adresa (OpenStreetMap Nominatim reverse geocoding) + link na Apple Maps
 - Namještaj kao opcionalni sloj (isključen po defaultu)
 - Ispis / spremanje kao PDF (preko browser print dijaloga)
