@@ -93,6 +93,59 @@ ok('string enums unwrapped', g.unwrap('wall').name === 'wall');
 eq('degenerate polygon falls back to dims', g.computeArea({ polygonCorners: [[0,0,0],[1,0,0]], dimensions:[2,3,0] }), 6);
 ok('esc neutralizes html', g.esc('<img onerror=x>') === '&lt;img onerror=x&gt;');
 
+// --- room segmentation & classification: two 4x3m rooms sharing one wall ---
+// (a real single-room scan has one flattened rooms[0] with no per-room floor
+// breakdown at all — this fixture supplies two floor polygons purely to
+// give segmentRooms something realistic to flood-fill against; the raw
+// walls/objects list is what real CapturedRoom JSON looks like)
+{
+  function wall2(id, len, axX, axZ, tx, tz){
+    return { identifier:id, category:{wall:{}}, confidence:{high:{}}, dimensions:[len,H,0], transform: mat(axX,axZ, tx,H/2,tz) };
+  }
+  const twoRoomWalls = [
+    wall2('A-bottom', 4, 1,0, 2,0), wall2('A-top', 4, 1,0, 2,3), wall2('A-left', 3, 0,1, 0,1.5),
+    wall2('shared',   3, 0,1, 4,1.5), // interior wall between room A and room B
+    wall2('B-bottom', 4, 1,0, 6,0), wall2('B-top', 4, 1,0, 6,3), wall2('B-right', 3, 0,1, 8,1.5),
+  ];
+  const flatFloorMat = [1,0,0,0, 0,0,1,0, 0,-1,0,0, 0,0,0,1];
+  const floorA = { identifier:'F-A', category:{floor:{}}, confidence:{high:{}}, dimensions:[4,3,0], transform: flatFloorMat, polygonCorners:[[0,0,0],[4,0,0],[4,3,0],[0,3,0]] };
+  const floorB = { identifier:'F-B', category:{floor:{}}, confidence:{high:{}}, dimensions:[4,3,0], transform: flatFloorMat, polygonCorners:[[4,0,0],[8,0,0],[8,3,0],[4,3,0]] };
+  const stove = { identifier:'O-1', category:{stove:{}}, confidence:{high:{}}, dimensions:[0.6,0.9,0.6], transform: mat(1,0, 1,0.45,1.5) };
+  const bed   = { identifier:'O-2', category:{bed:{}},   confidence:{high:{}}, dimensions:[1.4,0.5,2.0], transform: mat(1,0, 6,0.25,1.5) };
+
+  const twoRoomData = g.buildData({ rooms: [{ walls: twoRoomWalls, objects: [stove, bed], floors: [floorA, floorB] }] });
+  const seg = g.segmentRooms(twoRoomData);
+
+  eq('segmentRooms finds exactly 2 rooms', seg.zones.length, 2);
+  ok('per-room area close to true 12m² each (grid tolerance)',
+    seg.zones.every(z => Math.abs(z.area - 12) / 12 < 0.05));
+
+  const furnByZone = g.furnitureByZone(twoRoomData, seg.grid);
+  const labels = seg.zones.map(z => g.classifyZone(z, furnByZone.get(z.zoneId) || []));
+  ok('one zone classifies Kitchen (stove), one Bedroom (bed)',
+    labels.includes('Kitchen') && labels.includes('Bedroom'));
+
+  const wallsByZone = g.wallsByZone(twoRoomData, seg);
+  const kitchenZone = seg.zones[labels.indexOf('Kitchen')];
+  const bedroomZone = seg.zones[labels.indexOf('Bedroom')];
+  const kitchenWalls = wallsByZone.get(kitchenZone.zoneId) || [];
+  const bedroomWalls = wallsByZone.get(bedroomZone.zoneId) || [];
+  const sharedInKitchen = kitchenWalls.find(w => w.wall.identifier === 'shared');
+  const sharedInBedroom = bedroomWalls.find(w => w.wall.identifier === 'shared');
+
+  ok('shared wall appears in BOTH rooms\' wall lists', !!sharedInKitchen && !!sharedInBedroom);
+  eq('shared wall: full (not halved) area on the kitchen side', sharedInKitchen.netArea, 3*H, 1e-6);
+  eq('shared wall: full (not halved) area on the bedroom side', sharedInBedroom.netArea, 3*H, 1e-6);
+  eq('shared wall cross-references the other room', sharedInKitchen.sharedWith, bedroomZone.zoneId);
+
+  ok('exterior wall (A-left) appears only in one room\'s list',
+    kitchenWalls.some(w => w.wall.identifier === 'A-left') && !bedroomWalls.some(w => w.wall.identifier === 'A-left'));
+
+  // sanity: per-room breakdown is additive on top of, not a replacement for,
+  // the existing globally-deduplicated totals
+  eq('global wall count still deduplicated (7 walls, not 8)', twoRoomData.walls.length, 7);
+}
+
 console.log('');
 if (failures) { console.log(failures + ' FAILURE(S)'); process.exit(1); }
 console.log('All tests passed.');

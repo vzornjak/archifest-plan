@@ -15,6 +15,7 @@ Alat koji iz RoomPlan (LiDAR) JSON skeniranja prostorije generira tehnički izvj
 - Kompasna ruža (krug, oznake stupnjeva, N/E/S/W) u legendi ispod tlocrta; 🧭 gumb uz dopuštenje prikazuje malu živu strelicu s orijentacijom uređaja (iOS/Android, HTTPS), s kompenzacijom trenutne fizičke rotacije ekrana (portret/landscape) i dijagnostičkim brojkama za kalibraciju
 - Vrata s klasičnim simbolom otvaranja (krilo + luk) — strana šarke je konvencija jer sken bilježi samo isOpen; kosi dio zida označen sivo samo na stvarnom rasponu kosine
 - Panel "Podaci o skenu" iz meta.json: naziv, datum, koordinate, adresa (OpenStreetMap Nominatim reverse geocoding) + link na Apple Maps
+- **Segmentacija i klasifikacija soba** (bez Polycam pretplate) — raw RoomPlan JSON daje samo grube `sections` točke, ne prave granice soba. Alat sam rasterizira pod u finu mrežu i flood-fill pronalazi povezane prostorije (bez vanjske geometrijske biblioteke), zatim ih klasificira glasanjem po tipu namještaja (Kuhinja/Kupaonica/Spavaća/Dnevni boravak/Praonica/Hodnik/Ormar) s geometrijskim vetoima. Panel "Zone / Prostorije" prikazuje po sobi: površinu poda, popis namještaja, i **tablicu zidova s površinama** — dijeljeni zid između dvije sobe ulazi punom površinom u OBJE (svaka strana treba svoj premaz), dok ukupni bruto/neto zbroj u Pregledu ostaje kao dosad (jednom po zidu)
 - Namještaj kao opcionalni sloj (isključen po defaultu)
 - Ispis / spremanje kao PDF (preko browser print dijaloga)
 
@@ -44,7 +45,7 @@ Testovi koriste sintetičku prostoriju (nikad stvarne skenove klijenata — `.gi
 - Pravi sjever: `scan.json` sam po sebi nema apsolutni smjer (ARKit orijentacija je proizvoljna po sesiji). Računa se kombinacijom `meta.json` → `headingDegrees` i `referenceOriginTransform` rotacije iz `scan.json` (RoomPlan interno poravnava koordinate sa zidovima, a taj transform pamti izvornu orijentaciju sesije): `sjever = heading − refRot + 90°`. Korekcija od +90° je kalibrirana fizičkom provjerom kompasom — app bilježi sirovi CLHeading koji mjeri smjer vrha uređaja, ne kamere (telefon u landscape orijentaciji pri startu skena daje očitanje pomaknuto za 90°). Bez meta.json kompas prati pretpostavljeni sjever (−Z).
 - Validacija na stvarnom skenu: površina poda identična appu (28.978 m² = meta), a metin `wallAreaSquareMetres` odgovara našoj bruto površini iz poligona minus svi otvori (41.889 m²) — dakle meta prikazuje *neto* zidove.
 - Rekonstrukcija stropa pretpostavlja jednostavan produženi profil kroz dužinu prostorije (jednostrešni/dvostrešni krov) — za složenije oblike krova (koji se mijenjaju u oba smjera) ova metoda nije pouzdana
-- Bez build koraka, bez dependencyja osim onoga što se učita s CDN-a (Google Fonts). Jedini poziv s podacima: koordinate iz meta.json šalju se OSM Nominatimu radi adrese — sken ostaje lokalno
+- Bez build koraka, bez vanjskih dependencyja i bez CDN-a (sistemski font stack, `-apple-system`/`ui-monospace`) — radi 100% offline od prvog otvaranja. Jedini poziv s podacima: koordinate iz meta.json šalju se OSM Nominatimu radi adrese — sken ostaje lokalno
 
 ## Licenca
 

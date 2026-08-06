@@ -170,6 +170,252 @@ function wallNetArea(data, w){
   return Math.max(0, w.area - Math.min(openA, w.area));
 }
 
+// ---------- Room segmentation (raster/flood-fill, no external geometry library) ----------
+//
+// Raw RoomPlan JSON gives one floor polygon for the whole level and no per-room
+// wall/floor breakdown at all (only coarse `sections` center-points). To get
+// real per-room floor area, furniture membership, and — critically — which
+// room(s) each wall borders (an interior wall needs painting on BOTH sides,
+// each counted in full, not split in half), we rasterize the floor into a
+// fine grid and flood-fill the free space. This avoids pulling in a general
+// polygon union/difference library (turf.js + its polygon-clipping dependency
+// is ~30-45KB gzip even trimmed to the needed modules) and is naturally
+// robust to T-junctions and near-touching walls that break exact vector
+// clipping — nothing here can "fail to clip", worst case is a slightly
+// blocky boundary at the chosen cell resolution.
+
+const CELL_M = 0.02;              // grid resolution
+// Wall centerlines sit right at the floor polygon boundary in real scans, so
+// ANY band width eats that much off each room's raster-measured floor area —
+// this is purely a flood-fill connectivity guard (stop leaking through a
+// wall line at grid resolution), not a wall-thickness estimate, so it's kept
+// to the minimum that reliably blocks a CELL_M grid (~1.5 cells) rather than
+// a plausible physical thickness. Does not affect any reported wall/paint
+// area — those still come from dimensions/polygonCorners, never from the grid.
+const WALL_BAND_HALF_M = CELL_M * 1.5;
+const MIN_ZONE_AREA_M2 = 0.3;     // below this, treat as rasterization noise, not a room
+const MAX_GRID_CELLS = 4_000_000; // adaptive cell growth keeps this bounded
+
+function pointSegDist(px, pz, x1, z1, x2, z2){
+  const dx = x2-x1, dz = z2-z1;
+  const len2 = dx*dx + dz*dz;
+  let t = len2 > 0 ? ((px-x1)*dx + (pz-z1)*dz) / len2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1+t*dx), pz - (z1+t*dz));
+}
+
+function markBand(occ, gw, gh, p1, p2, halfWidth, minX, minZ, cell){
+  const minCX = Math.max(0, Math.floor((Math.min(p1[0],p2[0])-halfWidth-minX)/cell));
+  const maxCX = Math.min(gw-1, Math.ceil((Math.max(p1[0],p2[0])+halfWidth-minX)/cell));
+  const minCZ = Math.max(0, Math.floor((Math.min(p1[1],p2[1])-halfWidth-minZ)/cell));
+  const maxCZ = Math.min(gh-1, Math.ceil((Math.max(p1[1],p2[1])+halfWidth-minZ)/cell));
+  for (let cz=minCZ; cz<=maxCZ; cz++){
+    for (let cx=minCX; cx<=maxCX; cx++){
+      const wx = minX + (cx+0.5)*cell, wz = minZ + (cz+0.5)*cell;
+      if (pointSegDist(wx, wz, p1[0], p1[1], p2[0], p2[1]) <= halfWidth) occ[cz*gw+cx] = 1;
+    }
+  }
+}
+
+// standard even-odd scanline polygon fill — marks grid cells whose center
+// falls inside the polygon
+function markPolygonInside(inside, gw, gh, poly, minX, minZ, cell){
+  const n = poly.length;
+  if (n < 3) return;
+  for (let cz=0; cz<gh; cz++){
+    const wz = minZ + (cz+0.5)*cell;
+    const xs = [];
+    for (let i=0;i<n;i++){
+      const [x1,z1] = poly[i], [x2,z2] = poly[(i+1)%n];
+      if ((z1 <= wz && z2 > wz) || (z2 <= wz && z1 > wz)) {
+        xs.push(x1 + (wz-z1)/(z2-z1)*(x2-x1));
+      }
+    }
+    xs.sort((a,b)=>a-b);
+    for (let i=0;i+1<xs.length;i+=2){
+      const cxStart = Math.max(0, Math.ceil((xs[i]-minX)/cell - 0.5));
+      const cxEnd = Math.min(gw-1, Math.floor((xs[i+1]-minX)/cell - 0.5));
+      for (let cx=cxStart; cx<=cxEnd; cx++) inside[cz*gw+cx] = 1;
+    }
+  }
+}
+
+// segmentRooms: floods free (non-wall) space into connected components =
+// candidate rooms. zoneId here is unrelated to `roomIdx` elsewhere in this
+// file (roomIdx is just the index into the JSON's rooms[] array — almost
+// always 0, since a real scan is one rooms[0] entry with `sections` inside,
+// not a real per-room breakdown). zoneId is the actual physical room found
+// by this segmentation.
+function segmentRooms(data){
+  if (!data.walls.length) return { zones: [], grid: null };
+  const xs = [], zs = [];
+  for (const w of data.walls) { const s = wallSegment(w); xs.push(s.p1[0], s.p2[0]); zs.push(s.p1[1], s.p2[1]); }
+  for (const f of data.floors) { for (const p of floorPolygon(f)) { xs.push(p[0]); zs.push(p[1]); } }
+  if (!xs.length) return { zones: [], grid: null };
+
+  const pad = 0.3;
+  const minX = Math.min(...xs)-pad, maxX = Math.max(...xs)+pad;
+  const minZ = Math.min(...zs)-pad, maxZ = Math.max(...zs)+pad;
+  const spanX = maxX-minX, spanZ = maxZ-minZ;
+
+  let cell = CELL_M;
+  let gw = Math.max(1, Math.ceil(spanX/cell)), gh = Math.max(1, Math.ceil(spanZ/cell));
+  while (gw*gh > MAX_GRID_CELLS) { cell *= 1.5; gw = Math.max(1, Math.ceil(spanX/cell)); gh = Math.max(1, Math.ceil(spanZ/cell)); }
+
+  const occ = new Uint8Array(gw*gh);
+  for (const w of data.walls) { const s = wallSegment(w); markBand(occ, gw, gh, s.p1, s.p2, WALL_BAND_HALF_M, minX, minZ, cell); }
+
+  // constrain to inside the floor polygon(s) so padding/outside space never
+  // forms a bogus "room"; without a floor polygon (rare) this constraint is
+  // skipped and a stray outside sliver is possible — known limitation
+  let inside = null;
+  if (data.floors.length) {
+    inside = new Uint8Array(gw*gh);
+    for (const f of data.floors) markPolygonInside(inside, gw, gh, floorPolygon(f), minX, minZ, cell);
+  }
+  const free = i => !occ[i] && (!inside || inside[i]);
+
+  const label = new Int32Array(gw*gh).fill(-1);
+  const zones = [];
+  let nextId = 0;
+
+  for (let cz=0; cz<gh; cz++){
+    for (let cx=0; cx<gw; cx++){
+      const i = cz*gw+cx;
+      if (!free(i) || label[i] !== -1) continue;
+      const zoneId = nextId++;
+      const comp = [i];
+      label[i] = zoneId;
+      let head = 0, minCX=cx, maxCX=cx, minCZ=cz, maxCZ=cz;
+      while (head < comp.length) {
+        const cur = comp[head++];
+        const curCZ = (cur / gw) | 0, curCX = cur % gw;
+        if (curCX<minCX) minCX=curCX; if (curCX>maxCX) maxCX=curCX;
+        if (curCZ<minCZ) minCZ=curCZ; if (curCZ>maxCZ) maxCZ=curCZ;
+        const cands = [];
+        if (curCX>0) cands.push(cur-1);
+        if (curCX<gw-1) cands.push(cur+1);
+        if (curCZ>0) cands.push(cur-gw);
+        if (curCZ<gh-1) cands.push(cur+gw);
+        for (const n of cands) {
+          if (label[n] !== -1 || !free(n)) continue;
+          label[n] = zoneId;
+          comp.push(n);
+        }
+      }
+      const areaM2 = comp.length * cell * cell;
+      if (areaM2 < MIN_ZONE_AREA_M2) {
+        for (const c of comp) label[c] = -2; // discarded noise, not a room, not "outside" either
+        continue;
+      }
+      zones.push({
+        zoneId, cells: comp.length, area: areaM2,
+        bboxW: (maxCX-minCX+1)*cell, bboxH: (maxCZ-minCZ+1)*cell,
+        center: [minX+(minCX+maxCX+1)/2*cell, minZ+(minCZ+maxCZ+1)/2*cell]
+      });
+    }
+  }
+
+  return { zones, grid: { label, gw, gh, minX, minZ, cell } };
+}
+
+function zoneIdAt(grid, x, z){
+  if (!grid) return null;
+  const cx = Math.floor((x - grid.minX)/grid.cell), cz = Math.floor((z - grid.minZ)/grid.cell);
+  if (cx<0 || cx>=grid.gw || cz<0 || cz>=grid.gh) return null;
+  const id = grid.label[cz*grid.gw+cx];
+  return (id === -1 || id === -2) ? null : id;
+}
+
+// ---------- Room classification — furniture-category voting + geometric vetoes ----------
+// Adapted from room_classifier.js (no turf.js — area/bboxW/bboxH come from segmentRooms)
+
+const OBJECT_VOTES = {
+  stove: 'Kitchen', oven: 'Kitchen', refrigerator: 'Kitchen', dishwasher: 'Kitchen',
+  toilet: 'Bathroom', bathtub: 'Bathroom', sink: 'Bathroom', // sink alone is ambiguous — see kitchen-anchor override below
+  washerDryer: 'Laundry',
+  bed: 'Bedroom',
+  sofa: 'LivingRoom', television: 'LivingRoom', fireplace: 'LivingRoom',
+  stairs: 'Hallway',
+};
+
+const ZONE_LABELS_HR = {
+  Kitchen: 'Kuhinja', Bathroom: 'Kupaonica', Laundry: 'Praonica', Bedroom: 'Spavaća soba',
+  LivingRoom: 'Dnevni boravak', Hallway: 'Hodnik', Closet: 'Ormar', Other: 'Ostalo',
+};
+
+function classifyZone(zone, objectsInside){
+  const votes = {};
+  for (const o of objectsInside) {
+    const label = OBJECT_VOTES[o.catName];
+    if (label) votes[label] = (votes[label] || 0) + 1;
+  }
+  // sink is unreliable alone — RoomPlan doesn't distinguish kitchen/bathroom sinks;
+  // if a kitchen anchor is also present, sink votes count toward Kitchen instead
+  const hasKitchenAnchor = objectsInside.some(o => ['stove','oven','refrigerator'].includes(o.catName));
+  if (votes['Bathroom'] && hasKitchenAnchor) {
+    votes['Kitchen'] = (votes['Kitchen'] || 0) + votes['Bathroom'];
+    delete votes['Bathroom'];
+  }
+  let winner = Object.keys(votes).sort((a,b) => votes[b]-votes[a])[0] || null;
+
+  const aspectRatio = Math.max(zone.bboxW, zone.bboxH) / Math.max(0.01, Math.min(zone.bboxW, zone.bboxH));
+  const narrow = Math.min(zone.bboxW, zone.bboxH);
+
+  if (zone.area < 1.5 && !winner) return 'Closet';
+  if (narrow < 1.3 && aspectRatio > 2.5 && !winner) return 'Hallway';
+  if (winner === 'Bathroom' && zone.area > 15) winner = null; // stray sink in a big room
+
+  return winner || 'Other';
+}
+
+function furnitureByZone(data, grid){
+  const map = new Map();
+  for (const f of data.furniture) {
+    const zid = zoneIdAt(grid, f.transform[12], f.transform[14]);
+    if (zid == null) continue;
+    if (!map.has(zid)) map.set(zid, []);
+    map.get(zid).push(f);
+  }
+  return map;
+}
+
+// ---------- Walls per room, including shared interior walls ----------
+// Samples both sides of each wall's centerline against the zone grid. An
+// interior wall between two rooms is returned in BOTH rooms' lists, each
+// time with the full net area — each side needs its own coat of paint/tiles,
+// so it is not split in half. Overall gross/net totals elsewhere in this
+// file stay globally deduplicated (one wall = one figure) — this is a
+// separate, additive breakdown for per-room material accounting.
+function wallsByZone(data, segmentation){
+  const { grid } = segmentation;
+  const map = new Map();
+  if (!grid) return map;
+  const SAMPLE_OFFSET_M = 0.15;
+  const add = (zid, wall, net, sharedWith) => {
+    if (zid == null) return;
+    if (!map.has(zid)) map.set(zid, []);
+    map.get(zid).push({ wall, netArea: net, sharedWith });
+  };
+  for (const w of data.walls) {
+    const s = wallSegment(w);
+    const mx = (s.p1[0]+s.p2[0])/2, mz = (s.p1[1]+s.p2[1])/2;
+    const dx = s.p2[0]-s.p1[0], dz = s.p2[1]-s.p1[1];
+    const len = Math.hypot(dx,dz) || 1;
+    const nx = -dz/len, nz = dx/len;
+    const zA = zoneIdAt(grid, mx+nx*SAMPLE_OFFSET_M, mz+nz*SAMPLE_OFFSET_M);
+    const zB = zoneIdAt(grid, mx-nx*SAMPLE_OFFSET_M, mz-nz*SAMPLE_OFFSET_M);
+    const net = wallNetArea(data, w);
+    if (zA != null && zB != null && zA !== zB) {
+      add(zA, w, net, zB);
+      add(zB, w, net, zA);
+    } else {
+      add(zA != null ? zA : zB, w, net, null);
+    }
+  }
+  return map;
+}
+
 function reconstructCeilingForRoom(walls){
   if (!walls.length) return null;
   const profileWalls = walls.filter(w => w.hasSlope);
@@ -273,6 +519,9 @@ if (typeof module !== 'undefined' && module.exports) {
     topProfile, topEdgeSloped, profileLength, wallSegment, furnitureRect,
     floorPolygon, CONF_LEVELS, annotate, buildData, catLabel, wallNetArea,
     reconstructCeilingForRoom, reconstructCeiling, northBearingFrom,
-    sum, fmt, fmtArea, APPLE_EPOCH_MS, HEADING_OFFSET_DEG
+    sum, fmt, fmtArea, APPLE_EPOCH_MS, HEADING_OFFSET_DEG,
+    segmentRooms, zoneIdAt, classifyZone, furnitureByZone, wallsByZone,
+    OBJECT_VOTES, ZONE_LABELS_HR,
+    CELL_M, WALL_BAND_HALF_M, MIN_ZONE_AREA_M2
   };
 }

@@ -282,10 +282,62 @@ function renderStats(obj){
   }).join('');
 }
 
+// Real per-room segmentation (flood-fill grid, geometry.js) replaces the old
+// nearest-point heuristic whenever it finds actual rooms. Falls back to the
+// coarse RoomPlan `sections` display (no regression) if segmentation finds
+// nothing — e.g. a scan with no floor polygon at all.
 function renderZones(data){
   const el = document.getElementById('zonesContent');
+  const seg = segmentRooms(data);
+  if (seg.zones.length) {
+    renderZonesSegmented(el, data, seg);
+  } else {
+    renderZonesFallback(el, data);
+  }
+}
+
+function renderZonesSegmented(el, data, seg){
+  const furnByZone = furnitureByZone(data, seg.grid);
+  const wallMap = wallsByZone(data, seg);
+  // left-to-right, top-to-bottom reading order for a stable, predictable list
+  const ordered = [...seg.zones].sort((a,b) => a.center[1]-b.center[1] || a.center[0]-b.center[0]);
+
+  let html = '';
+  ordered.forEach((z, i) => {
+    const objs = furnByZone.get(z.zoneId) || [];
+    const cls = classifyZone(z, objs);
+    const title = cls === 'Other' ? 'Soba ' + (i+1) : ZONE_LABELS_HR[cls];
+    const walls = (wallMap.get(z.zoneId) || []).slice().sort((a,b) => b.netArea - a.netArea);
+    const wallsTotal = sum(walls, w => w.netArea);
+
+    html += '<div class="zone-block">';
+    html += '<div class="zone-title">' + esc(title) + '</div>';
+    html += '<div class="zone-sub">' + fmtArea(z.area) + ' pod · ' + fmtArea(wallsTotal) + ' zidovi (za premaz)' +
+      (objs.length ? ' · ' + objs.map(o=>esc(catLabel(o))).join(' · ') : ' · nema namještaja') + '</div>';
+    if (walls.length) {
+      html += '<table style="margin-top:6px;"><thead><tr><th>Zid</th><th>Dim (m)</th><th>Površina</th><th></th></tr></thead><tbody>';
+      html += walls.map(w => {
+        const wg = w.wall;
+        const badge = w.sharedWith != null ? ' <span class="badge b-shared">dijeljen</span>' : '';
+        return '<tr><td>' + esc(String(wg.identifier).slice(0,8)) + badge + '</td><td>' + wg.dimensions[0].toFixed(2) + ' × ' + wg.dimensions[1].toFixed(2) + '</td><td>' + fmt(w.netArea) + '</td><td></td></tr>';
+      }).join('');
+      html += '</tbody></table>';
+    }
+    html += '</div>';
+  });
+  el.innerHTML = html;
+  const note = document.getElementById('zonesNote');
+  if (note) {
+    note.textContent = 'Automatska segmentacija (mreža ' + (CELL_M*100).toFixed(0) + ' cm) — granice i klasifikacija su procjena. "Dijeljen" zid ulazi punom površinom u obje sobe (svaka strana svoj premaz); ukupni zbroj zidova u Pregledu i dalje broji svaki zid jednom.';
+    note.style.display = '';
+  }
+}
+
+function renderZonesFallback(el, data){
+  const note = document.getElementById('zonesNote');
+  if (note) note.style.display = 'none';
   if (!data.sections.length) {
-    el.innerHTML = '<div style="font-family:JetBrains Mono,monospace; font-size:11.5px; color:var(--ink-dim);">Nema imenovanih zona u ovoj datoteci.</div>';
+    el.innerHTML = '<div style="font-family:ui-monospace,monospace; font-size:11.5px; color:var(--ink-dim);">Nema imenovanih zona u ovoj datoteci.</div>';
     return;
   }
   let html = '';
@@ -326,9 +378,9 @@ function renderWallsTable(data){
 
 function renderCeilingPanel(ceiling){
   const el = document.getElementById('ceilingContent');
-  if (!ceiling) { el.innerHTML = '<div style="color:var(--ink-faint); font-family:JetBrains Mono,monospace; font-size:11.5px;">Nema zidova za rekonstrukciju.</div>'; return; }
+  if (!ceiling) { el.innerHTML = '<div style="color:var(--ink-faint); font-family:ui-monospace,monospace; font-size:11.5px;">Nema zidova za rekonstrukciju.</div>'; return; }
   if (ceiling.flat) {
-    el.innerHTML = '<div style="font-family:JetBrains Mono,monospace; font-size:11.5px; color:var(--ink-dim);">Nijedan zid nema kosi gornji rub (nema detektiranih kosina) — strop se tretira kao ravan, jednak tlocrtu poda.</div>';
+    el.innerHTML = '<div style="font-family:ui-monospace,monospace; font-size:11.5px; color:var(--ink-dim);">Nijedan zid nema kosi gornji rub (nema detektiranih kosina) — strop se tretira kao ravan, jednak tlocrtu poda.</div>';
     return;
   }
   let html = '<table><thead><tr><th>Zid</th><th>Greben (puna V)</th><th>Koljenasti zid</th><th>Segmenti</th></tr></thead><tbody>';
@@ -522,14 +574,14 @@ function renderPlan(data, showFurniture){
     parts.push('<line x1="' + x2 + '" y1="' + y2 + '" x2="' + ox2 + '" y2="' + oy2 + '" stroke-dasharray="' + tick + ',' + tick + '"/>');
     parts.push('</g>');
     const mxl = (ox1+ox2)/2, myl = (oy1+oy2)/2;
-    parts.push('<text x="' + mxl + '" y="' + myl + '" class="sv-dimtxt" font-size="' + fontSize + '" font-family="JetBrains Mono, monospace" text-anchor="middle" dy="' + (-fontSize*0.35) + '">' + s.len.toFixed(2) + ' m</text>');
+    parts.push('<text x="' + mxl + '" y="' + myl + '" class="sv-dimtxt" font-size="' + fontSize + '" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" text-anchor="middle" dy="' + (-fontSize*0.35) + '">' + s.len.toFixed(2) + ' m</text>');
   }
 
   // zone labels
   for (const s of data.sections) {
     const [x, y] = toSvg(s.center[0], s.center[2]);
     const label = String(s.label).replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/^./, c => c.toUpperCase());
-    parts.push('<text x="' + x + '" y="' + y + '" class="sv-muted" font-size="' + (fontSize*1.2) + '" font-family="Space Grotesk, sans-serif" text-anchor="middle" opacity="0.8">' + esc(label) + '</text>');
+    parts.push('<text x="' + x + '" y="' + y + '" class="sv-muted" font-size="' + (fontSize*1.2) + '" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif" text-anchor="middle" opacity="0.8">' + esc(label) + '</text>');
   }
 
   svg.innerHTML = parts.join('');
@@ -576,7 +628,7 @@ function compassRose(parts, cx, cy, r, roseDeg, stroke, fontSize, label){
     const rad = a * Math.PI/180;
     const x = cx + Math.sin(rad) * r * 0.55, y = cy - Math.cos(rad) * r * 0.55;
     const cls = t === 'N' ? 'sv-dimtxt' : 'sv-muted';
-    g += '<text x="' + x + '" y="' + y + '" class="' + cls + '" font-size="' + (fontSize * (t === 'N' ? 0.85 : 0.62)) + '" font-family="JetBrains Mono, monospace" text-anchor="middle" dominant-baseline="central" transform="rotate(' + (-roseDeg).toFixed(2) + ' ' + x + ' ' + y + ')">' + t + '</text>';
+    g += '<text x="' + x + '" y="' + y + '" class="' + cls + '" font-size="' + (fontSize * (t === 'N' ? 0.85 : 0.62)) + '" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" text-anchor="middle" dominant-baseline="central" transform="rotate(' + (-roseDeg).toFixed(2) + ' ' + x + ' ' + y + ')">' + t + '</text>';
   }
   // needle: north half highlighted, south half muted
   g += '<polygon class="sv-dimtxt" points="' + cx + ',' + (cy - r*0.42) + ' ' + (cx - r*0.09) + ',' + cy + ' ' + (cx + r*0.09) + ',' + cy + '"/>';
@@ -587,8 +639,8 @@ function compassRose(parts, cx, cy, r, roseDeg, stroke, fontSize, label){
   parts.push('<g id="devNeedle" style="display:none">' +
     '<polygon class="sv-live" points="' + cx + ',' + (cy - r*0.64) + ' ' + (cx - r*0.085) + ',' + (cy - r*0.34) + ' ' + (cx + r*0.085) + ',' + (cy - r*0.34) + '"/>' +
     '</g>');
-  parts.push('<text x="' + cx + '" y="' + (cy + r + fontSize*0.8) + '" class="sv-muted" font-size="' + (fontSize*0.55) + '" font-family="JetBrains Mono, monospace" text-anchor="middle" opacity="0.65">' + label + '</text>');
+  parts.push('<text x="' + cx + '" y="' + (cy + r + fontSize*0.8) + '" class="sv-muted" font-size="' + (fontSize*0.55) + '" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" text-anchor="middle" opacity="0.65">' + label + '</text>');
   // diagnostic line for live-compass calibration — empty (invisible) unless the
   // device compass is on; not sent anywhere, purely a local readout
-  parts.push('<text id="devDebug" x="' + cx + '" y="' + (cy + r + fontSize*1.7) + '" class="sv-muted" font-size="' + (fontSize*0.42) + '" font-family="JetBrains Mono, monospace" text-anchor="middle" opacity="0.55"></text>');
+  parts.push('<text id="devDebug" x="' + cx + '" y="' + (cy + r + fontSize*1.7) + '" class="sv-muted" font-size="' + (fontSize*0.42) + '" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" text-anchor="middle" opacity="0.55"></text>');
 }
