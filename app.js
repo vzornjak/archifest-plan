@@ -466,20 +466,31 @@ function renderPlan(data, showFurniture){
   };
 
   let rotDeg, wantLandscape;
-  if (northB != null && !orientationOverride) {
-    // North-up wins: pick whichever of the FOUR axis-aligned rotations puts true
-    // north closest to the top of the screen, and let that decide
-    // Portrait/Landscape. Walls stay straight in all four. This matters because
-    // a 90° step swaps Portrait<->Landscape, so fixing the orientation first and
-    // only tie-breaking the 180° flip (as this did before) can leave north stuck
-    // ~90° off — measured on the reference scan: Portrait can only reach 87° or
-    // 93° from north-up, while Landscape reaches 3°. That made "face north and
-    // the plan matches the room" impossible in Portrait no matter the flip.
-    let best = 0;
-    for (const step of [90, 180, 270]) if (northOffsetFor(step) < northOffsetFor(best)) best = step;
-    rotDeg = -wallAngle + best;
-    wantLandscape = best % 180 === 0;
-    landToggle.checked = wantLandscape;
+  if (northB != null) {
+    // North-up base: of the FOUR axis-aligned rotations (all equally straight),
+    // take the one putting true north closest to the top, and let it decide
+    // Portrait/Landscape by default. A 90° step swaps Portrait<->Landscape, so
+    // considering only the 180° flip within a fixed orientation — as this once
+    // did — can leave north stuck ~90° off: on the reference scan Portrait only
+    // reaches 87°/93° from north-up while Landscape reaches 3°, which made
+    // "face north and the plan matches the room" impossible in Portrait.
+    let base = 0;
+    for (const step of [90, 180, 270]) if (northOffsetFor(step) < northOffsetFor(base)) base = step;
+    const baseLandscape = base % 180 === 0;
+    if (orientationOverride) {
+      wantLandscape = orientationOverride === 'landscape';
+    } else {
+      wantLandscape = baseLandscape;
+      landToggle.checked = wantLandscape;
+    }
+    // Switching to the other orientation is a fixed quarter turn from that base,
+    // NOT an independent "north closest to up" pick for the other orientation.
+    // In the non-north-up orientation both candidates sit ~90° from the top
+    // (87° vs 93° here), so choosing between them on that criterion is decided
+    // by a few degrees of wall angle yet changes the drawing by a full 180° —
+    // physically verified as landing the wrong way round. The quarter turn keeps
+    // the toggle predictable and consistent with the verified base.
+    rotDeg = -wallAngle + base + (wantLandscape === baseLandscape ? 0 : -90);
   } else {
     if (orientationOverride) {
       wantLandscape = orientationOverride === 'landscape';
@@ -488,14 +499,8 @@ function renderPlan(data, showFurniture){
       wantLandscape = panelW >= window.innerHeight * 0.7;
       landToggle.checked = wantLandscape;
     }
+    // No meta.json: north is unknown, so orientation is just the panel shape.
     rotDeg = -wallAngle + (wantLandscape ? 0 : 90);
-    // Manual override (or no meta.json): the user's Portrait/Landscape choice
-    // is king, but still prefer the 180° variant that puts north nearer the top.
-    if (northB != null) {
-      const nb = ((rotDeg - northB) % 360 + 360) % 360;
-      const d = nb > 180 ? nb - 360 : nb; // signed distance of north from "up", (-180,180]
-      if (Math.abs(d) > 90) rotDeg = (rotDeg + 180) % 360;
-    }
   }
   const th = rotDeg * Math.PI/180, cosT = Math.cos(th), sinT = Math.sin(th);
   const projX = (x, z) => x*cosT - z*sinT;
