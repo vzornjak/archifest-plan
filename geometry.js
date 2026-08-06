@@ -495,10 +495,20 @@ function reconstructCeiling(data){
 // true-north bearing of world -Z, derived from meta.json heading combined with
 // the room's referenceOriginTransform yaw (RoomPlan realigns coordinates to the
 // walls; that transform remembers the original session orientation).
-// The +90 offset is calibrated against a physically compass-verified scan:
+// The -90 offset is calibrated against a physically compass-verified scan:
 // the app records raw CLHeading, which measures the top of the device, not the
-// camera direction — held in landscape at scan start that reads facing - 90.
-const HEADING_OFFSET_DEG = 90;
+// camera direction — held in landscape at scan start that reads facing + 90.
+//
+// This was briefly flipped to +90 based on an early physical check, but that
+// check was made while the live needle itself was still broken (it used
+// webkitCompassHeading with an inverted rotation sense until that was fixed
+// separately), so it was judged against a wrong display. Re-measured cleanly
+// afterwards: standing in the room and physically rotating until the plan
+// visually matched it, the needle read 180deg instead of the 0deg it must show
+// when aligned — i.e. north was inverted, putting it back at -90. The rose
+// angle is identical either way (the wall-alignment step absorbs it); what
+// actually differs is the plan drawing, which comes out rotated 180deg.
+const HEADING_OFFSET_DEG = -90;
 function northBearingFrom(headingDegrees, refRotDeg){
   if (headingDegrees == null) return null;
   return ((headingDegrees - (refRotDeg || 0) + HEADING_OFFSET_DEG) % 360 + 360) % 360;

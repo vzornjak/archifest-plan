@@ -84,8 +84,9 @@ ok('flat ceiling flagged', flatCeil.flat);
 eq('flat ceiling = floor area', flatCeil.ceilingArea, 24, 1e-9);
 
 // --- north bearing ---
-eq('north = heading - refRot + 90', g.northBearingFrom(90.52, 89.56), 90.52 - 89.56 + 90, 1e-9);
-eq('north wraps into [0,360)', g.northBearingFrom(10, 200), (10 - 200 + 90 + 360) % 360, 1e-9);
+// offset is -90, physically re-calibrated (see HEADING_OFFSET_DEG in geometry.js)
+eq('north = heading - refRot - 90', g.northBearingFrom(90.52, 89.56), ((90.52 - 89.56 - 90) % 360 + 360) % 360, 1e-9);
+eq('north wraps into [0,360)', g.northBearingFrom(10, 200), ((10 - 200 - 90) % 360 + 360) % 360, 1e-9);
 eq('north null without heading', g.northBearingFrom(null, 45), null);
 
 // --- robustness ---

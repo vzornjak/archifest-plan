@@ -231,8 +231,8 @@ function render(data, filename){
     'Strop nije izravno skeniran (RoomPlan nema "ceiling" kategoriju) — rekonstruiran je po prostoriji iz profila zidova s kosim gornjim rubom, ' +
     'uz pretpostavku da se poprečni presjek proteže cijelom dužinom prostorije (jednostavan jednostrešni/dvostrešni krov). ' +
     'Za složenije oblike krova (koji se mijenjaju u oba smjera) ova metoda nije pouzdana. ' +
-    'Orijentacija: pravi sjever = meta.json heading − referenceOriginTransform rotacija + 90° ' +
-    '(RoomPlan interno poravnava koordinate sa zidovima, a korekcija od +90° je kalibrirana fizičkom provjerom kompasom: ' +
+    'Orijentacija: pravi sjever = meta.json heading − referenceOriginTransform rotacija − 90° ' +
+    '(RoomPlan interno poravnava koordinate sa zidovima, a korekcija od −90° je kalibrirana fizičkom provjerom u prostoriji: ' +
     'app bilježi sirovi CLHeading koji mjeri vrh uređaja, ne smjer kamere). ' +
     'Bez meta.json orijentacija je proizvoljna po sesiji skeniranja — kompas tada prati pretpostavljeni sjever. ' +
     'Tlocrt je poravnat s najdužim zidom (uvijek ravan); sjever pokazuje kompasna ruža u legendi. Kad je sjever poznat, od četiri osne rotacije ' +
