@@ -307,6 +307,71 @@ ok('esc neutralizes html', g.esc('<img onerror=x>') === '&lt;img onerror=x&gt;')
   eq('the two halves add up to the whole wall', lowHalf + highHalf, sw.area, 0.001);
 }
 
+// --- roof section shapes: one slope across the whole wall, two meeting at a
+// peak, and a flat top with a slope down each side. For a rectangular footprint
+// the extrusion is exact, so every case must land on profileLength x roomLength.
+{
+  const RL = 6, RW = 4;   // room: 6 m along the ridge, 4 m across
+  const rf = [1,0,0,0, 0,0,1,0, 0,-1,0,0, 0,0,0,1];
+  const rFloor = { identifier:'RF', category:{floor:{}}, confidence:{high:{}}, dimensions:[RW,RL,0],
+                   transform: rf, polygonCorners:[[0,0,0],[RW,0,0],[RW,RL,0],[0,RL,0]] };
+  const rw = (id, len, axX, axZ, tx, tz, h, corners) => ({
+    identifier:id, category:{wall:{}}, confidence:{high:{}}, dimensions:[len,h,0],
+    transform: mat(axX,axZ, tx,h/2,tz), ...(corners ? { polygonCorners: corners } : {})
+  });
+  // sections, all 4 m wide, knee 1.0, ridge 2.5 (polygon y runs -1.25..1.25)
+  const shed  = [[-2,-1.25,0],[2,-1.25,0],[2,1.25,0],[-2,-0.25,0]];                       // slope across the whole wall
+  const peak  = [[-2,-1.25,0],[2,-1.25,0],[2,-0.25,0],[0,1.25,0],[-2,-0.25,0]];           // two slopes to a point
+  const flatT = [[-2,-1.25,0],[2,-1.25,0],[2,-0.25,0],[1,1.25,0],[-1,1.25,0],[-2,-0.25,0]]; // flat top, a slope each side
+
+  function roof(name, corners, sideWalls, expectMethod){
+    const d = g.buildData({ rooms:[{ walls:[ rw('GA',RW,0,1, 0,RL/2, 2.5, corners),
+                                             rw('GB',RW,0,1, RW,RL/2, 2.5, corners), ...sideWalls ],
+                                     floors:[rFloor] }] });
+    const c = g.reconstructCeilingForRoom(d.walls, RW*RL);
+    const truth = g.profileLength(g.topProfile(d.walls[0]).pts) * RL;
+    eq(name, c.ceilingArea, truth, 1e-9);
+    if (expectMethod) ok(name + ' — method ' + expectMethod, c.method === expectMethod);
+    return c;
+  }
+  const knee = (id, tz, h = 1.0, len = RL, tx = RW/2) => rw(id, len, 1,0, tx, tz, h);
+  const full = (id, tz) => rw(id, RL, 1,0, RW/2, tz, 2.5);
+
+  // the three shapes asked about
+  roof('slope across the whole wall (mono-pitch)', shed,  [knee('K',0), full('F',RL)], 'knee');
+  roof('two slopes meeting at a peak',             peak,  [knee('KA',0), knee('KB',RL)], 'knee');
+  roof('flat top with a slope down each side',     flatT, [knee('KA',0), knee('KB',RL)], 'knee');
+
+  // regressions: dividing the knee total by the slope COUNT halved the length
+  // whenever the slopes did not each have their own matching knee wall
+  roof('peak with a knee wall on one side only',        peak,  [knee('K',0), full('F',RL)]);
+  roof('flat top with a knee wall on one side only',    flatT, [knee('K',0), full('F',RL)]);
+  roof('peak with knee walls at different heights',     peak,  [knee('KA',0), knee('KB',RL,1.4)]);
+
+  // a side broken into pieces by a doorway is still one side
+  roof('knee wall split into three along one side', peak,
+    [knee('K1',0,1.0,2,1), knee('K2',0,1.0,2,3), knee('K3',0,1.0,2,5), knee('KB',RL)]);
+
+  const sides = g.reconstructCeilingForRoom(g.buildData({ rooms:[{
+      walls:[ rw('GA',RW,0,1, 0,RL/2, 2.5, peak), rw('GB',RW,0,1, RW,RL/2, 2.5, peak),
+              knee('K1',0,1.0,2,1), knee('K2',0,1.0,2,3), knee('K3',0,1.0,2,5), knee('KB',RL) ],
+      floors:[rFloor] }] }).walls, RW*RL).kneeSides;
+  eq('the three pieces group into one side', sides.length, 2);
+  ok('and that side measures the full room length', sides.every(s => Math.abs(s.length - RL) < 1e-9));
+
+  // a slope reaching the floor has no knee wall to measure — falls back
+  roof('slope down to the floor, no knee wall',
+    [[-2,-1.25,0],[2,-1.25,0],[2,1.25,0]], [full('F',RL)], 'section');
+
+  // the printed equation must reconcile with the shoelace area in all three shapes
+  for (const [name, corners, terms] of [['mono-pitch', shed, 1], ['peak', peak, 2], ['flat top', flatT, 2]]) {
+    const w = g.buildData({ rooms:[{ walls:[rw('E',RW,0,1, 0,RL/2, 2.5, corners)] }] }).walls[0];
+    const cut = g.slopeCutTriangles(w);
+    eq('equation terms — ' + name, cut.triangles.length, terms);
+    eq('W·H − Σ(ΔW·ΔH)/2 === area — ' + name, cut.W*cut.H - cut.cutArea, w.area, 1e-9);
+  }
+}
+
 // --- painting area: openings up to 3 m2 are not deducted at all, above it only
 // the excess comes off (trade convention, not geometry) ---
 {
