@@ -11,7 +11,7 @@
      URLs, and the report must keep working opened straight off the disk. -->
 <meta http-equiv="Content-Security-Policy" content="connect-src 'none'; form-action 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'">
 <!-- ?v= busts the browser cache on every release; bump APP_VERSION in geometry.js to match -->
-<link rel="stylesheet" href="style.css?v=2026-08-07e">
+<link rel="stylesheet" href="style.css?v=2026-08-07f">
 </head>
 <body>
 <div class="sheet">
@@ -64,6 +64,7 @@
           <h2>Pregled</h2>
           <div class="stats" id="statsGrid"></div>
           <div class="floor-check" id="floorCheck" style="display:none;"></div>
+          <div class="floor-check" id="wallCheck" style="display:none;"></div>
         </div>
 
         <div class="panel" id="zonesPanel">
@@ -74,8 +75,8 @@
 
         <div class="panel">
           <h2>Zidovi</h2>
-          <table id="wallsTable"><thead><tr><th>Element</th><th>Dim (m)</th><th>Bruto</th><th>Neto*</th><th>Pouzd.</th></tr></thead><tbody></tbody></table>
-          <div class="assumption">* Neto = bruto površina umanjena za otvore povezane s tim zidom preko <code>parentIdentifier</code>-a iz izvornih podataka — ne po blizini, nego po stvarnoj vezi otvor↔zid. Ukupna neto vrijednost u Pregledu je zbroj ovih redaka.<span id="unlinkedNote"></span></div>
+          <table id="wallsTable"><thead><tr><th>Element</th><th>Dim (m)</th><th>Bruto</th><th>Neto*</th><th>Bojanje**</th><th>Pouzd.</th></tr></thead><tbody></tbody></table>
+          <div class="assumption">* Neto = bruto površina umanjena za otvore povezane s tim zidom preko <code>parentIdentifier</code>-a iz izvornih podataka — ne po blizini, nego po stvarnoj vezi otvor↔zid. Ukupna neto vrijednost u Pregledu je zbroj ovih redaka.<span id="unlinkedNote"></span><br><br>** Bojanje = zanatska konvencija, ne geometrija: otvor do <strong>3 m²</strong> se uopće ne odbija (vrijeme ušteđeno na rupi potroši se na špalete, ćoškove i zaštitu), a preko toga se odbija samo razlika (otvor od 4 m² odbija 1 m²). Zbroj u Pregledu ide po prostorijama, pa dijeljeni zid ulazi s <strong>obje</strong> strane — svaka strana treba svoj premaz.</div>
         </div>
 
         <div class="panel" id="ceilingPanel">
@@ -99,7 +100,7 @@
   </div>
 </div>
 
-<script src="geometry.js?v=2026-08-07e"></script>
-<script src="app.js?v=2026-08-07e"></script>
+<script src="geometry.js?v=2026-08-07f"></script>
+<script src="app.js?v=2026-08-07f"></script>
 </body>
 </html>
