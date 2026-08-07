@@ -611,7 +611,7 @@ function fmtArea(n){ if (n === null || n === undefined || isNaN(n)) return '—'
 // Bump together with the ?v= query strings in index.html when shipping —
 // mobile Safari otherwise keeps serving stale JS after a deploy, which has
 // repeatedly led to fixes being tested against old code.
-const APP_VERSION = '2026-08-07c';
+const APP_VERSION = '2026-08-07d';
 
 const APPLE_EPOCH_MS = 978307200000; // 2001-01-01 UTC — Apple/Core Data reference date
 

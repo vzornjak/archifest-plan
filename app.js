@@ -181,7 +181,7 @@ function render(data, filename){
     '(sve jednako ravne, isti tlocrt) bira se ona gdje je sjever najbliže gore — time se ujedno određuje Portrait/Landscape, jer rotacija od 90° mijenja i to. ' +
     'Ručnim prekidačem se to nadjačava, ali tada sjever u pravilu ostaje ~90° od gore. ' +
     'Simbol otvaranja vrata (krilo + luk) je konvencija — sken ne bilježi stranu šarki ni smjer otvaranja. ' +
-    'Adresa se dohvaća reverse geocodingom (OpenStreetMap Nominatim) — jedino se koordinate iz meta.json šalju tom servisu; sken ostaje lokalno.';
+    'Alat ne radi nijedan mrežni poziv: nema CDN-a, fontova, karata, geokodiranja ni analitike. Sve — uključujući koordinate iz meta.json — ostaje na uređaju.';
 }
 
 function metaChip(label, value){ return '<div>' + label + '<span>' + value + '</span></div>'; }
@@ -198,33 +198,17 @@ function renderMetaPanel(){
   if (m.createdAt != null) {
     rows.push(['Datum', new Date(APPLE_EPOCH_MS + m.createdAt*1000).toLocaleString('hr-HR', { dateStyle: 'medium', timeStyle: 'short' })]);
   }
+  // Coordinates are shown as plain, selectable text. No map link and no
+  // reverse geocoding: this app makes ZERO network requests by design, so
+  // nothing about the scanned property — not even its coordinates — ever
+  // leaves the device.
   if (m.latitude != null && m.longitude != null) {
-    rows.push(['Koordinate', m.latitude.toFixed(6) + ', ' + m.longitude.toFixed(6) +
-      ' · <a href="https://maps.apple.com/?q=' + m.latitude + ',' + m.longitude + '" target="_blank" rel="noopener" style="color:var(--amber);">Apple Maps</a>']);
-    rows.push(['Adresa', '<span id="metaAddr">učitavam…</span>']);
+    rows.push(['Koordinate', m.latitude.toFixed(6) + ', ' + m.longitude.toFixed(6)]);
   }
   if (m.headingDegrees != null) rows.push(['Heading', m.headingDegrees.toFixed(1) + '°']);
   if (m.roomCount != null) rows.push(['Prostorija', String(m.roomCount)]);
   document.getElementById('metaContent').innerHTML =
     '<table><tbody>' + rows.map(r => '<tr><th style="width:32%;">' + r[0] + '</th><td>' + r[1] + '</td></tr>').join('') + '</tbody></table>';
-  if (m.latitude != null && m.longitude != null) fetchAddress(m.latitude, m.longitude);
-}
-
-// reverse geocoding via OpenStreetMap Nominatim (free, no key); only the
-// coordinates leave the browser — the scan itself stays local
-let addrCache = { key: null, text: null };
-async function fetchAddress(lat, lon){
-  const key = lat.toFixed(5) + ',' + lon.toFixed(5);
-  const el = () => document.getElementById('metaAddr');
-  if (addrCache.key === key) { if (el()) el().textContent = addrCache.text; return; }
-  try {
-    const r = await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&accept-language=hr&zoom=18&lat=' + lat + '&lon=' + lon);
-    const j = await r.json();
-    addrCache = { key, text: j.display_name || 'adresa nedostupna' };
-  } catch (e) {
-    addrCache = { key, text: 'adresa nedostupna' };
-  }
-  if (el()) el().textContent = addrCache.text;
 }
 
 function renderStats(obj){
