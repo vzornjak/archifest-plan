@@ -611,11 +611,15 @@ function planOrientation(opts){
 // survived in Landscape (rose 357°) and only showed up in Portrait, where the
 // plan is rotated ~93° and facing north pointed the needle physically west.
 //
-// Because the rose's N mark is drawn at roseDeg, needle and N coincide exactly
-// when heading equals the plan's up-bearing — i.e. when the drawing matches
-// the room. That makes "turn until the arrow meets N" a valid alignment cue.
+// NEEDLE_OFFSET_DEG is physically calibrated, not derived. Observed on the
+// test device with the plan and the rose both confirmed correct at the time:
+// the needle sat on true SOUTH, exactly half a circle out. The turning sense
+// was already right (turn right, needle swings left), so only this constant
+// changed. It is the single knob for this — if a future device needs it, flip
+// it here rather than reworking the formula.
+const NEEDLE_OFFSET_DEG = 180;
 function needleAngleFrom(headingDeg){
-  return ((360 - headingDeg) % 360 + 360) % 360;
+  return ((360 - headingDeg + NEEDLE_OFFSET_DEG) % 360 + 360) % 360;
 }
 
 function sum(arr, fn){ return arr.reduce((a, x) => a + fn(x), 0); }
@@ -628,7 +632,7 @@ function fmtArea(n){ if (n === null || n === undefined || isNaN(n)) return '—'
 // Bump together with the ?v= query strings in index.html when shipping —
 // mobile Safari otherwise keeps serving stale JS after a deploy, which has
 // repeatedly led to fixes being tested against old code.
-const APP_VERSION = '2026-08-07a';
+const APP_VERSION = '2026-08-07b';
 
 const APPLE_EPOCH_MS = 978307200000; // 2001-01-01 UTC — Apple/Core Data reference date
 
@@ -638,7 +642,7 @@ if (typeof module !== 'undefined' && module.exports) {
     esc, unwrap, shoelace2D, reshapeMatrix, localToWorld, computeArea,
     topProfile, topEdgeSloped, profileLength, wallSegment, furnitureRect,
     floorPolygon, CONF_LEVELS, annotate, buildData, catLabel, wallNetArea,
-    reconstructCeilingForRoom, reconstructCeiling, northBearingFrom, planOrientation, needleAngleFrom,
+    reconstructCeilingForRoom, reconstructCeiling, northBearingFrom, planOrientation, needleAngleFrom, NEEDLE_OFFSET_DEG,
     sum, fmt, fmtArea, APPLE_EPOCH_MS, APP_VERSION, HEADING_OFFSET_DEG,
     segmentRooms, zoneIdAt, classifyZone, furnitureByZone, wallsByZone,
     OBJECT_VOTES, ZONE_LABELS_HR,

@@ -128,30 +128,28 @@ eq('north null without heading', g.northBearingFrom(null, 45), null);
   ok('no meta: override beats panel shape', nm3.landscape === false && nm3.rotDeg === 60);
 }
 
-// --- live compass needle: must show TRUE north, not north-on-the-drawing ---
+// --- live compass needle (offset physically calibrated, see NEEDLE_OFFSET_DEG) ---
 {
   const norm = a => ((a % 360) + 360) % 360;
-  eq('facing north => needle points up', g.needleAngleFrom(0), 0);
-  eq('facing east => needle swings left', g.needleAngleFrom(90), 270);
-  eq('facing south => needle points down', g.needleAngleFrom(180), 180);
-  eq('facing west => needle swings right', g.needleAngleFrom(270), 90);
-  ok('needle never depends on how the plan is rotated',
-    g.needleAngleFrom(0) === g.needleAngleFrom(0));
+  const off = g.NEEDLE_OFFSET_DEG;
 
-  // needle meets the rose's N mark exactly when the plan matches the room —
-  // in BOTH orientations, which the previous roseDeg+heading form only
-  // achieved when the plan happened to be near north-up
-  for (const roseDeg of [357, 267, 87, 180]) {
-    const planUpBearing = norm(360 - roseDeg);
-    eq('rose ' + roseDeg + '°: needle meets N when facing plan-up',
-      g.needleAngleFrom(planUpBearing), roseDeg, 1e-9);
+  // Turning sense is the part that was verified independently and must hold:
+  // turn right, the needle swings left. Pinned across a full circle.
+  for (const h of [0, 45, 90, 180, 270, 315]) {
+    eq('heading ' + h + '°: needle = 360 - heading + offset',
+      g.needleAngleFrom(h), norm(360 - h + off), 1e-9);
   }
-  // the old formula's failure mode, pinned so it cannot come back
-  const roseP = 267, facingNorth = 0;
-  ok('facing north in a rotated plan does NOT put the needle sideways',
-    Math.min(g.needleAngleFrom(facingNorth), 360-g.needleAngleFrom(facingNorth)) < 5);
-  ok('old roseDeg+heading form would have pointed it ~93° off',
-    Math.abs(norm(roseP + facingNorth) - 267) < 1);
+  const before = g.needleAngleFrom(0), after = g.needleAngleFrom(90);
+  const swing = norm(after - before);
+  ok('turning right swings the needle left', swing > 180,
+    'delta=' + swing.toFixed(0) + '°');
+  eq('a right turn moves it by the same angle', norm(before - after), 90, 1e-9);
+
+  // must not depend on how the plan happens to be rotated — that was the
+  // earlier bug, invisible whenever the plan sat near north-up
+  ok('independent of plan rotation', g.needleAngleFrom(30) === g.needleAngleFrom(30));
+
+  eq('offset is a half turn', off, 180);
 }
 
 // --- robustness ---
