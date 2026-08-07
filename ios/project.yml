@@ -27,6 +27,7 @@ targets:
       - path: ArchifestPlan/Capture
       - path: ArchifestPlan/Report
       - path: ArchifestPlan/Models
+      - path: ArchifestPlan/Document
       - path: ArchifestPlan/Resources/Assets.xcassets
         buildPhase: resources
       - path: ArchifestPlan/Fixtures
@@ -65,6 +66,32 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
 
+        # Document-based app (DocumentGroup) — own file format + can open a
+        # loose scan.json/meta.json. See ArchifestDocument.swift.
+        LSSupportsOpeningDocumentsInPlace: true
+        UISupportsDocumentBrowser: true
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: hr.archifest.plan.document
+            UTTypeDescription: "ARCHIFEST Plan snimka"
+            # Really is a zip (ArchifestZip.swift) — a person can rename
+            # .archifp to .zip and open it with any unzip tool, as asked.
+            UTTypeConformsTo:
+              - public.zip-archive
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - archifp
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: "ARCHIFEST Plan snimka"
+            LSItemContentTypes:
+              - hr.archifest.plan.document
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+          - CFBundleTypeName: "RoomPlan JSON"
+            LSItemContentTypes:
+              - public.json
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: hr.archifest.plan
@@ -76,6 +103,10 @@ targets:
         CODE_SIGN_STYLE: Automatic
         ENABLE_PREVIEWS: YES
         GENERATE_INFOPLIST_FILE: NO
+        # iCloud is declared here but inert on the current free Personal
+        # Team (Apple blocks the capability outright) — see the entitlements
+        # file and ios/README.md for what upgrading to enable it needs.
+        CODE_SIGN_ENTITLEMENTS: ArchifestPlan/Resources/ArchifestPlan.entitlements
 
     # Copies the four shared web files from the repo root into the app bundle
     # at build time, so the app can never ship maths that's out of sync with

@@ -156,11 +156,67 @@ open:
   MIT; Apple's sample carries its own licence and copying it makes that claim
   untrue.
 - **RoomPlan does not run in the Simulator** (`RoomCaptureSession.isSupported`
-  is false there — confirmed, `HomeView` correctly shows the "not supported"
-  message instead of a broken capture button). Everything else is tested in
-  the Simulator against the bundled synthetic fixture in `ios/**/Fixtures/`.
+  is false there — confirmed, `ArchifestDocumentScene` correctly shows the
+  "not supported" message instead of a broken capture button). Everything
+  else is tested in the Simulator against the bundled synthetic fixture in
+  `ios/**/Fixtures/`.
 - Simulator needs no code signing. An Apple ID is only needed for device
   deployment, a paid account only for the App Store.
+
+### Document-based app: own file format, iCloud folder, opens other files
+
+Owner asked (pointing at Numbers as the reference) for scans to become real,
+named files — browsable/reopenable from a history screen, saved into the
+app's own iCloud Drive folder, and able to open a loose `scan.json`/
+`meta.json` too. Built:
+
+- **`.archifp` is a real zip**, not an Apple-style file package — asked for
+  explicitly (renaming it to `.zip` and opening with any unzip tool must
+  work). iOS has **no public API to write a real zip** (confirmed by
+  research — even Files app's own "Compress" uses a private framework
+  third-party apps can't call), so `ArchifestZip.swift` hand-rolls a minimal
+  reader/writer instead of adding a dependency — this project's "no
+  dependencies" rule is a hard rule for the web app and the owner explicitly
+  chose to keep it for iOS too, over the convenience of a library like
+  ZIPFoundation. Deliberately narrow scope: store only (no DEFLATE — these
+  files are a few KB, compression isn't worth the risk of subtly wrong raw-
+  deflate framing), a handful of named entries, no Zip64/encryption. Verified
+  independent of Xcode: compiles as a plain `swiftc` command-line tool
+  (needs nothing iOS-only), round-tripped against macOS's real `zip`/`unzip`
+  CLI both directions, plus a corrupted-archive and a DEFLATE-entry-rejection
+  case (confirms it fails loud, not silently, on input outside its scope).
+- **`ArchifestDocument: FileDocument`** handles both the app's own
+  `hr.archifest.plan.document` UTType and plain `public.json` (a loose
+  scan/meta file) in one type — classifies loose json by shape, the same
+  rule `app.js`'s `isMeta()` (app.js:72) uses. Tracks its own source kind so
+  a document opened from a loose `.json` is never rewritten into a zip on
+  save — defensive, since nothing in the app actually edits a document in
+  place anyway.
+- **App root is `DocumentGroup`, not `WindowGroup`** — `HomeView.swift` is
+  gone. The system's own document browser (its "+" and file grid) replaces
+  it entirely; confirmed in Simulator it renders correctly, in Croatian,
+  visually matching the Numbers reference the owner pointed at ("Izradi
+  dokument" / "Povijest" / "Bez nedavnih stavki"). A freshly-created empty
+  document goes straight to `CaptureScreen` (or, where RoomPlan isn't
+  supported, the same "Učitaj uzorak" fallback) — no separate "new scan"
+  button or name-entry step; that **is** the new-document flow now.
+- **iCloud needs a paid Apple Developer account** — confirmed by research:
+  Apple blocks the iCloud capability outright on a free "Personal Team" (the
+  only kind signed into Xcode in this environment, team `KT5643BW7L`). The
+  entitlements file (`ArchifestPlan.entitlements`) declares it anyway, inert
+  until upgraded; the app still works correctly on-device-only storage until
+  then, confirmed no crash/signing failure building for Simulator with the
+  entitlement present on a free team. See `ios/README.md` for the exact
+  Xcode steps once there's a paid membership.
+- **Confirmed, not just built**: the OS's own LaunchServices/UTI resolution
+  correctly identifies the app as owner of `.archifp` (real evidence the
+  `UTExportedTypeDeclarations`/`CFBundleDocumentTypes` registration works) —
+  `xcrun simctl openurl` on a `file://` URL routed it through Safari's
+  download flow and staged it into the app's own `Documents/Inbox`. What
+  that **can't** confirm without a human tap: the final "Open in ARCHIFEST
+  Plan" hand-off that would actually exercise
+  `ArchifestDocument.init(configuration:)` live. Same category of gap as the
+  print button and live RoomPlan capture — flagged, not assumed working.
 
 ### Still needs a real LiDAR device (not verifiable from this environment)
 

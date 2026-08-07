@@ -11,14 +11,17 @@
 		23B543DBADE4A562797C9460 /* ScanExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 024C9A24D440180901965D5D /* ScanExport.swift */; };
 		3114B39E34A8867A1D67CF7D /* CaptureCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4471CBF485BBC71400BA7FC /* CaptureCoordinator.swift */; };
 		5D21C6A79CE1E4B0918088DC /* CaptureScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ECC28E7582743C40860A980 /* CaptureScreen.swift */; };
-		67A03A8BED34FDD5154884BE /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD09D4FD727FCD9D388F28BA /* HomeView.swift */; };
 		6ABF2BFFE67EBD9DA1186BA2 /* sample-scan-meta.json in Resources */ = {isa = PBXBuildFile; fileRef = 2B629790D9F4578974257536 /* sample-scan-meta.json */; };
 		7E9B3AF5798A1A548C7BBDFF /* sample-scan.json in Resources */ = {isa = PBXBuildFile; fileRef = A4585C071A148969CA130DCF /* sample-scan.json */; };
 		828B2C480F3231A1D5DB5072 /* RoomCaptureRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59820D412309E0E8AB49394C /* RoomCaptureRepresentable.swift */; };
+		88770C2AD4BE193D7708B01D /* ReportScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48D9375AC02944478C28798A /* ReportScreen.swift */; };
+		9008ACDACDC0E78B0C0C6C3E /* ArchifestZip.swift in Sources */ = {isa = PBXBuildFile; fileRef = B945629B8F5C18C28759EBBD /* ArchifestZip.swift */; };
 		9B4A99598096951D26A6DE13 /* HeadingReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 279045E9861EBAE68F41E1F1 /* HeadingReader.swift */; };
 		9C3117EAF425F44E2D252201 /* ScanMeta.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE01015ECFC9ED87C747C3F9 /* ScanMeta.swift */; };
 		AFEC6BF0CEA4B86863E3A4E8 /* ReportWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 539F84A6D01C8A0806A5D2C3 /* ReportWebView.swift */; };
 		E77C56C7474103056D1D157E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8C85A35BDBF20CC3096169D2 /* Assets.xcassets */; };
+		EC5B93581411FB2A370EC421 /* ArchifestDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC559C5B334895D63A41059E /* ArchifestDocument.swift */; };
+		F3C168628CEDB50F5EB57C93 /* ArchifestDocumentScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B70E41298DB6F8783F6C320 /* ArchifestDocumentScene.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -26,15 +29,18 @@
 		0D4B9498E827B82929A67F6E /* ArchifestPlanApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchifestPlanApp.swift; sourceTree = "<group>"; };
 		279045E9861EBAE68F41E1F1 /* HeadingReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadingReader.swift; sourceTree = "<group>"; };
 		2B629790D9F4578974257536 /* sample-scan-meta.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "sample-scan-meta.json"; sourceTree = "<group>"; };
+		48D9375AC02944478C28798A /* ReportScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportScreen.swift; sourceTree = "<group>"; };
 		539F84A6D01C8A0806A5D2C3 /* ReportWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportWebView.swift; sourceTree = "<group>"; };
 		59820D412309E0E8AB49394C /* RoomCaptureRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomCaptureRepresentable.swift; sourceTree = "<group>"; };
-		7E2180B90A739EF7321EB415 /* ArchifestPlan.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ArchifestPlan.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6B70E41298DB6F8783F6C320 /* ArchifestDocumentScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchifestDocumentScene.swift; sourceTree = "<group>"; };
+		7E2180B90A739EF7321EB415 /* ArchifestPlan.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ArchifestPlan.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8C85A35BDBF20CC3096169D2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8ECC28E7582743C40860A980 /* CaptureScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureScreen.swift; sourceTree = "<group>"; };
 		A4585C071A148969CA130DCF /* sample-scan.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "sample-scan.json"; sourceTree = "<group>"; };
-		AD09D4FD727FCD9D388F28BA /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		B945629B8F5C18C28759EBBD /* ArchifestZip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchifestZip.swift; sourceTree = "<group>"; };
 		BE01015ECFC9ED87C747C3F9 /* ScanMeta.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanMeta.swift; sourceTree = "<group>"; };
 		D4471CBF485BBC71400BA7FC /* CaptureCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCoordinator.swift; sourceTree = "<group>"; };
+		EC559C5B334895D63A41059E /* ArchifestDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchifestDocument.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -49,6 +55,7 @@
 		0D652E2A51FE4980ABA0195D /* Report */ = {
 			isa = PBXGroup;
 			children = (
+				48D9375AC02944478C28798A /* ReportScreen.swift */,
 				539F84A6D01C8A0806A5D2C3 /* ReportWebView.swift */,
 				024C9A24D440180901965D5D /* ScanExport.swift */,
 			);
@@ -76,7 +83,6 @@
 			isa = PBXGroup;
 			children = (
 				0D4B9498E827B82929A67F6E /* ArchifestPlanApp.swift */,
-				AD09D4FD727FCD9D388F28BA /* HomeView.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -113,12 +119,23 @@
 			children = (
 				3BF5A90DD61E02E6B40D66AE /* App */,
 				565AE3CB50B2736D56A7F072 /* Capture */,
+				FFEAAECF79E266B3CED15118 /* Document */,
 				2B8825AE7FFE680DDC091279 /* Fixtures */,
 				08FCCC827EB06464C085C754 /* Models */,
 				0D652E2A51FE4980ABA0195D /* Report */,
 				4F2D7291273CF2D43FD5618E /* Resources */,
 			);
 			path = ArchifestPlan;
+			sourceTree = "<group>";
+		};
+		FFEAAECF79E266B3CED15118 /* Document */ = {
+			isa = PBXGroup;
+			children = (
+				EC559C5B334895D63A41059E /* ArchifestDocument.swift */,
+				6B70E41298DB6F8783F6C320 /* ArchifestDocumentScene.swift */,
+				B945629B8F5C18C28759EBBD /* ArchifestZip.swift */,
+			);
+			path = Document;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -223,11 +240,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EC5B93581411FB2A370EC421 /* ArchifestDocument.swift in Sources */,
+				F3C168628CEDB50F5EB57C93 /* ArchifestDocumentScene.swift in Sources */,
 				08374CCD738F7937C527FA78 /* ArchifestPlanApp.swift in Sources */,
+				9008ACDACDC0E78B0C0C6C3E /* ArchifestZip.swift in Sources */,
 				3114B39E34A8867A1D67CF7D /* CaptureCoordinator.swift in Sources */,
 				5D21C6A79CE1E4B0918088DC /* CaptureScreen.swift in Sources */,
 				9B4A99598096951D26A6DE13 /* HeadingReader.swift in Sources */,
-				67A03A8BED34FDD5154884BE /* HomeView.swift in Sources */,
+				88770C2AD4BE193D7708B01D /* ReportScreen.swift in Sources */,
 				AFEC6BF0CEA4B86863E3A4E8 /* ReportWebView.swift in Sources */,
 				828B2C480F3231A1D5DB5072 /* RoomCaptureRepresentable.swift in Sources */,
 				23B543DBADE4A562797C9460 /* ScanExport.swift in Sources */,
@@ -299,9 +319,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ArchifestPlan/Resources/ArchifestPlan.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = KT5643BW7L;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ArchifestPlan/Resources/Info.plist;
@@ -323,9 +343,9 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ArchifestPlan/Resources/ArchifestPlan.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = KT5643BW7L;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ArchifestPlan/Resources/Info.plist;
