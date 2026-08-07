@@ -58,16 +58,21 @@ struct CaptureScreen: View {
         captureControls
       }
     }
-    .statusBarHidden()
-    // Drops DocumentGroup's document name and rename chevron — see the
-    // helper in ToolbarModifiers.swift for why a `.principal` item alone
-    // doesn't do it and what the availability caveat is.
-    .removingNavigationTitle()
-    .toolbar {
-      ToolbarItem(placement: .principal) {
-        RoomCountBadge(hold: hold, roomNumber: coordinator.capturedRoomCount + 1)
-      }
+    // Floated at the top rather than placed as a `.principal` toolbar item,
+    // and that's deliberate: `.toolbar(removing: .title)` — which is what
+    // drops DocumentGroup's document name and rename chevron — removes the
+    // whole title slot, and a custom `.principal` item lives in that same
+    // slot, so it disappeared along with the name. Verified directly in
+    // Simulator (a `.principal` item vanishes under that modifier while a
+    // `.topBarLeading` one survives). Since no centred toolbar slot exists
+    // once the title is gone, the badge floats here instead — same place on
+    // screen, same Liquid Glass, independent of the title.
+    .overlay(alignment: .top) {
+      RoomCountBadge(hold: hold, roomNumber: coordinator.capturedRoomCount + 1)
+        .padding(.top, 8)
     }
+    .statusBarHidden()
+    .removingNavigationTitle()
     .onAppear {
       coordinator.projectName = projectName
       coordinator.onFinished = onFinished
@@ -111,7 +116,7 @@ struct CaptureScreen: View {
           HoldButton(systemImage: "forward.fill", tint: .orange, duration: 1.5, hold: hold) {
             coordinator.advanceToNextRoom()
           }
-          HoldButton(systemImage: "stop.fill", tint: .red, duration: 2.5, hold: hold) {
+          HoldButton(systemImage: "stop.fill", tint: .red, duration: 2.0, hold: hold) {
             coordinator.stopSession()
           }
         }
@@ -136,10 +141,11 @@ struct CaptureScreen: View {
   }
 }
 
-/// The room counter, doubling as the hold-progress meter. Sits in the
-/// navigation bar's centre slot on real system Liquid Glass — not a
-/// hand-rolled `.thinMaterial` imitation of it, which is what an earlier
-/// pass used and what read as "more frosted" than the bar around it.
+/// The room counter, doubling as the hold-progress meter. Floats at the top
+/// centre (see the note at the call site for why it isn't a toolbar item) on
+/// real system Liquid Glass — not a hand-rolled `.thinMaterial` imitation of
+/// it, which is what an earlier pass used and what read as "more frosted"
+/// than the bar around it.
 ///
 /// Observes `HoldProgress` on its own so an in-flight hold animation
 /// re-renders only this small view, not the whole capture screen (and with
