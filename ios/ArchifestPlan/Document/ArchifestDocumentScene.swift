@@ -10,18 +10,30 @@ import RoomPlan
 
 struct ArchifestDocumentScene: View {
   @Binding var document: ArchifestDocument
+  let fileURL: URL?
 
   var body: some View {
     if let scan = document.scan {
-      ReportScreen(name: document.name, scan: scan, meta: document.meta)
-    } else if RoomCaptureSession.isSupported {
-      CaptureScreen(projectName: document.name) { scan, meta, name in
-        document.name = name
-        document.scan = scan
-        document.meta = meta
+      ReportScreen(name: document.name, scan: scan, meta: document.meta, fileURL: fileURL)
+    } else if document.source == .new {
+      // Only a genuinely brand-new, never-populated document reaches
+      // capture. `scan == nil` is NOT enough on its own to mean "new" — an
+      // opened standalone meta.json (or a broken .archifp) also has a nil
+      // scan, and used to fall through to here too, silently launching
+      // RoomPlan on a file that was never meant to be captured into. Fixed
+      // by checking `document.source` (already tracked, just wasn't
+      // consulted here) alongside `scan`.
+      if RoomCaptureSession.isSupported {
+        CaptureScreen(projectName: document.name) { scan, meta, name in
+          document.name = name
+          document.scan = scan
+          document.meta = meta
+        }
+      } else {
+        UnsupportedCaptureView(onLoadSample: loadSample)
       }
     } else {
-      UnsupportedCaptureView(onLoadSample: loadSample)
+      NoScanDataView(meta: document.meta)
     }
   }
 
@@ -58,6 +70,51 @@ private struct UnsupportedCaptureView: View {
         .padding(.horizontal)
       Button("Učitaj uzorak", action: onLoadSample)
         .buttonStyle(.borderedProminent)
+      Spacer()
+    }
+    .padding()
+  }
+}
+
+// Shown for a file that was actually opened (not a fresh document) but
+// turned out to have no scan data in it — a standalone meta.json shared
+// without its scan.json, or a corrupted/unexpected .archifp. Never starts
+// a capture session; that would silently launch RoomPlan on the wrong
+// trigger, exactly the bug this view exists to avoid.
+private struct NoScanDataView: View {
+  let meta: Data?
+
+  private var decodedMeta: ScanMeta? {
+    meta.flatMap { try? JSONDecoder().decode(ScanMeta.self, from: $0) }
+  }
+
+  var body: some View {
+    VStack(spacing: 16) {
+      Spacer()
+      Image(systemName: "doc.questionmark")
+        .font(.system(size: 40))
+        .foregroundStyle(.secondary)
+      Text("Ovaj fajl ne sadrži RoomPlan sken")
+        .font(.headline)
+      if let decodedMeta {
+        VStack(spacing: 4) {
+          Text("Pronađen je samo meta.json.")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+          if let name = decodedMeta.name, !name.isEmpty {
+            Text(name).font(.subheadline)
+          }
+          Text(String(format: "Kompas: %.1f°", decodedMeta.headingDegrees))
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+        }
+      } else {
+        Text("Fajl je učitan, ali ne sadrži prepoznatljive podatke skena (scan.json) niti meta.json.")
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
+          .padding(.horizontal)
+      }
       Spacer()
     }
     .padding()

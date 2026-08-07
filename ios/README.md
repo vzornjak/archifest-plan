@@ -99,6 +99,19 @@ DEFLATE-entry rejection case. Do not add compression without re-running that
 kind of check — raw DEFLATE framing is exactly where a hand-rolled zip tends
 to go subtly wrong.
 
+## Capture controls
+
+`CaptureScreen` uses press-and-hold, not tap-then-dialog: hold the orange
+**Next** button (~2.5s) to advance to the next room without losing AR
+tracking (`RoomCaptureSession.stop(pauseARSession: false)` — Apple's own
+documented multi-room technique, not a workaround); hold the red **Stop**
+button (~3.5s) to end the session. Both fill the top room-count badge as
+you hold, no confirmation dialog needed. RoomPlan's only real capture-time
+option is `.beautifyObjects` (furniture only) — wall straightening/corner
+alignment/noise cleanup aren't configurable at all, checked directly
+against the complete API surface, not assumed missing. Full writeup in
+CLAUDE.md's iOS section.
+
 ## Known-unverified (needs a real device, or a human tap)
 
 - The multi-room merge (`StructureBuilder.capturedStructure(from:)`) hasn't

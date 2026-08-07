@@ -15,6 +15,11 @@ struct ReportWebView: UIViewRepresentable {
   let name: String
   let scanJSON: Data
   let metaJSON: Data?
+  /// Bump this (e.g. `trigger += 1`) from outside to trigger a share-sheet
+  /// PDF export on demand — the native toolbar's "Podijeli PDF" action uses
+  /// this to reuse the exact same, already-working pipeline the in-report
+  /// print button drives, rather than a second implementation.
+  @Binding var pdfExportTrigger: Int
 
   func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -36,6 +41,7 @@ struct ReportWebView: UIViewRepresentable {
     context.coordinator.name = name
     context.coordinator.scanJSON = scanJSON
     context.coordinator.metaJSON = metaJSON
+    context.coordinator.lastHandledPDFTrigger = pdfExportTrigger
 
     guard
       let indexURL = Bundle.main.url(forResource: "index", withExtension: "html"),
@@ -48,7 +54,11 @@ struct ReportWebView: UIViewRepresentable {
     return webView
   }
 
-  func updateUIView(_ webView: WKWebView, context: Context) {}
+  func updateUIView(_ webView: WKWebView, context: Context) {
+    guard pdfExportTrigger != context.coordinator.lastHandledPDFTrigger else { return }
+    context.coordinator.lastHandledPDFTrigger = pdfExportTrigger
+    Task { await context.coordinator.exportAndSharePDF(webView) }
+  }
 
   @MainActor
   final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
@@ -56,6 +66,7 @@ struct ReportWebView: UIViewRepresentable {
     var name = ""
     var scanJSON: Data?
     var metaJSON: Data?
+    var lastHandledPDFTrigger = 0
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
       Task { await injectScan() }
@@ -98,7 +109,9 @@ struct ReportWebView: UIViewRepresentable {
       Task { await exportAndSharePDF(webView) }
     }
 
-    private func exportAndSharePDF(_ webView: WKWebView) async {
+    // Not private: also called directly from ReportWebView.updateUIView
+    // when the native toolbar's Share menu bumps pdfExportTrigger.
+    func exportAndSharePDF(_ webView: WKWebView) async {
       do {
         // The existing @media print stylesheet (style.css:134-162) is already
         // tuned for a light printable page, so createPDF against the current

@@ -1,7 +1,6 @@
 // CaptureCoordinator — owns the RoomCaptureView/RoomCaptureSession lifecycle
-// for a multi-room walkthrough: capture a room, ask "add another or finish",
-// repeat; on finish, wrap a single CapturedRoom directly or merge several via
-// StructureBuilder (RoomPlan's multi-room merge API — see ScanExport.swift).
+// for a multi-room walkthrough. On finish, wraps a single CapturedRoom
+// directly or merges several via StructureBuilder (see ScanExport.swift).
 //
 // Multi-room merge correctness is explicitly UNVERIFIED here — no LiDAR
 // device is available in the environment this was written in, and RoomPlan
@@ -11,27 +10,39 @@ import RoomPlan
 
 @MainActor
 final class CaptureCoordinator: NSObject, ObservableObject {
-  struct Result {
-    let scan: Data
-    let meta: Data
-    let name: String
+  private enum PendingAction {
+    case nextRoom
+    case finish
   }
 
   let roomCaptureView = RoomCaptureView(frame: .zero)
   let heading = HeadingReader()
 
   @Published var isCapturing = false
-  @Published var showRoomFinishedPrompt = false
+  /// Flips true once RoomPlan itself confirms the session actually started
+  /// (RoomCaptureSessionDelegate.didStartWith) — the real signal the
+  /// capture screen's blur-until-ready transition waits on, not a guess.
+  @Published var isSessionReady = false
   @Published var isMerging = false
   @Published var errorMessage: String?
   @Published private(set) var capturedRoomCount = 0
 
   private var capturedRooms: [CapturedRoom] = []
+  private var pendingAction: PendingAction = .nextRoom
+  private var hasEnded = false
+
   var projectName = ""
+  /// Called once, with the finished export, when the session ends
+  /// successfully. A stored property rather than a completion closure per
+  /// call — the coordinator itself decides when a session is done (the
+  /// Stop button, via `stopSession()`), so it's the one that should invoke
+  /// it, not something the screen has to orchestrate.
+  var onFinished: ((_ scan: Data, _ meta: Data, _ name: String) -> Void)?
 
   override init() {
     super.init()
     roomCaptureView.delegate = self
+    roomCaptureView.captureSession.delegate = self
   }
 
   // RoomCaptureViewDelegate : NSCoding (verified against Apple's current
@@ -46,21 +57,54 @@ final class CaptureCoordinator: NSObject, ObservableObject {
 
   func startRoom() {
     if capturedRooms.isEmpty { heading.start() }
-    roomCaptureView.captureSession.run(configuration: RoomCaptureSession.Configuration())
+    isSessionReady = false
+    var configuration = RoomCaptureSession.Configuration()
+    // Already the default — set explicitly so it's not an invisible fact.
+    // RoomPlan's own "move closer / slow down" coaching overlay is what
+    // this turns on; there is no other capture-time quality/detail option
+    // in RoomPlan's public API (checked the complete member list of both
+    // RoomCaptureSession.Configuration and RoomBuilder.ConfigurationOptions
+    // — beautifyObjects, used below in finishSession(), is the only one
+    // that exists at all, and it only affects furniture placement).
+    configuration.isCoachingEnabled = true
+    roomCaptureView.captureSession.run(configuration: configuration)
     isCapturing = true
-    showRoomFinishedPrompt = false
   }
 
-  func stopRoom() {
-    roomCaptureView.captureSession.stop()
+  /// "Next" — ends this room's capture but keeps AR world tracking running
+  /// (stop(pauseARSession: false)) so walking into the next room stays in
+  /// the same coordinate space, then immediately captures the next room
+  /// with no prompt. This is Apple's own documented technique for exactly
+  /// this scenario (WWDC23 "Explore enhancements to RoomPlan", session
+  /// 10192: "stop(pauseARSession: false) ... reuse the same
+  /// roomCaptureSession instance for subsequent scans... the ARSession
+  /// remains running across all scans") — not a workaround, the
+  /// recommended one.
+  func advanceToNextRoom() {
+    pendingAction = .nextRoom
+    roomCaptureView.captureSession.stop(pauseARSession: false)
   }
 
+  /// "Stop" — ends the whole session: finishes this room, fully pauses AR
+  /// tracking, and moves to merge + report once the room finishes
+  /// processing (see `captureView(didPresent:)` below).
+  func stopSession() {
+    pendingAction = .finish
+    roomCaptureView.captureSession.stop(pauseARSession: true)
+  }
+
+  /// Leaving the capture screen by any means (system back chevron, edge
+  /// swipe) ends up here via `.onDisappear` — guarded so it's a no-op if
+  /// `stopSession()` already cleanly finished the session.
   func cancelSession() {
+    guard !hasEnded else { return }
+    hasEnded = true
     roomCaptureView.captureSession.stop(pauseARSession: true)
     heading.stop()
   }
 
-  func finish(onDone: @escaping (Result) -> Void) {
+  private func finishSession() {
+    hasEnded = true
     isMerging = true
     let rooms = capturedRooms
     let name = projectName
@@ -85,7 +129,7 @@ final class CaptureCoordinator: NSObject, ObservableObject {
         )
         let metaData = try JSONEncoder().encode(meta)
         self.isMerging = false
-        onDone(Result(scan: payload, meta: metaData, name: name.isEmpty ? "snimka" : name))
+        self.onFinished?(payload, metaData, name.isEmpty ? "snimka" : name)
       } catch {
         self.isMerging = false
         self.errorMessage = error.localizedDescription
@@ -98,6 +142,9 @@ final class CaptureCoordinator: NSObject, ObservableObject {
 // isolated conformance (`extension ...: @MainActor RoomCaptureViewDelegate`)
 // — that form hit an unrelated NSCoding conformance error from the compiler
 // for this particular @objc protocol; this is the well-established pattern.
+// Applied the same way to RoomCaptureSessionDelegate below for consistency,
+// even though it only inherits AnyObject (checked) and doesn't share that
+// specific issue.
 extension CaptureCoordinator: RoomCaptureViewDelegate {
   nonisolated func captureView(shouldPresent roomDataForProcessing: CapturedRoomData, error: (any Error)?) -> Bool {
     true
@@ -114,7 +161,23 @@ extension CaptureCoordinator: RoomCaptureViewDelegate {
       self.capturedRooms.append(processedResult)
       self.capturedRoomCount = self.capturedRooms.count
       self.isCapturing = false
-      self.showRoomFinishedPrompt = true
+      switch self.pendingAction {
+      case .nextRoom:
+        self.startRoom()
+      case .finish:
+        self.finishSession()
+      }
+    }
+  }
+}
+
+extension CaptureCoordinator: RoomCaptureSessionDelegate {
+  nonisolated func captureSession(
+    _ session: RoomCaptureSession,
+    didStartWith configuration: RoomCaptureSession.Configuration
+  ) {
+    Task { @MainActor in
+      self.isSessionReady = true
     }
   }
 }

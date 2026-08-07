@@ -228,6 +228,105 @@ app's own iCloud Drive folder, and able to open a loose `scan.json`/
   `ArchifestDocument.init(configuration:)` live. Same category of gap as the
   print button and live RoomPlan capture — flagged, not assumed working.
 
+### What RoomPlan actually lets you configure
+
+Asked to check for scan-processing options (beautify, wall straightening,
+corner alignment, noise cleanup, "more detailed model"). Checked the
+complete public member lists, not guessed:
+
+- **`RoomBuilder.ConfigurationOptions`** (also what `StructureBuilder`'s
+  `options:` takes) has exactly **one** case: `.beautifyObjects` —
+  furniture only ("realigns chairs around a table"). Already used in
+  `CaptureCoordinator.finishSession()`.
+- **Wall straightening, corner alignment, noise cleanup are not
+  configurable at all** — not a missing toggle, there genuinely isn't one.
+  `RoomCaptureSession.Configuration`'s only member besides `init()` is
+  `isCoachingEnabled: Bool` (now set explicitly, though `true` was already
+  the default). Nothing sets mesh/scan detail level either. This is simply
+  the entire configurable surface RoomPlan exposes.
+- **Multi-room, without losing AR tracking between rooms**:
+  `RoomCaptureSession.stop(pauseARSession: false)` ends the current room's
+  capture but leaves the underlying `ARSession` running, so walking through
+  a doorway into the next room stays in the same coordinate space. This is
+  Apple's own documented technique (WWDC23, "Explore enhancements to
+  RoomPlan", session 10192), not a workaround — confirmed before building
+  `CaptureCoordinator.advanceToNextRoom()`/`stopSession()` around it.
+- **No pause/resume of an in-progress room capture exists** —
+  `RoomCaptureSession`'s complete method list is `run`/`stop`/
+  `stop(pauseARSession:)`, checked directly. A "Pause" button was considered
+  and dropped for exactly this reason (owner's call, after seeing there was
+  nothing real for it to control).
+
+### Capture controls: hold-to-confirm Next/Stop, not tap-then-dialog
+
+Replaced the old "Gotovo" button + confirmation-dialog flow. Now:
+`CaptureScreen` shows two round buttons (Next, Stop) in the bottom-right
+quarter of the screen, each requiring a **press-and-hold** — holding Next
+fills the top room-count badge orange over ~2.5s and advances to the next
+room; holding Stop fills it red over ~3.5s and ends the session. No SwiftUI
+primitive does hold-with-progress, so it's hand-built (`HoldButton` in
+`CaptureScreen.swift`): a `DragGesture(minimumDistance: 0)` for immediate
+touch-down detection, a `withAnimation(.linear(duration:))` driving the
+visual fill, and a parallel `Task.sleep` of the same duration — cancelled on
+early release — deciding whether the hold actually completed.
+
+Also: capture no longer starts the instant the screen appears. It now
+blurs while camera permission is resolved, reveals an explicit **Start**
+button, and `coordinator.startRoom()` is called only on that tap — real
+capture data never collects before the user consciously starts it. A second
+brief blur covers the gap between the Start tap and RoomPlan's own
+`RoomCaptureSessionDelegate.didStartWith` callback (`isSessionReady`).
+`UIApplication.isIdleTimerDisabled` is set while the screen is visible so
+the screen never auto-locks mid-scan; screen brightness is dimmed modestly
+and restored on disappear — worth being honest that this only helps a
+little, the dominant heat/battery cost of a RoomPlan scan is the LiDAR
+sensor and ARKit/ML processing, not the backlight.
+
+### Navigation chrome: DocumentGroup already provides one bar, don't add a second
+
+Real bug, found by the owner: opening a report showed **two** stacked
+navigation bars. Root cause — `DocumentGroup` wraps its editor content in a
+navigation bar of its own (confirmed, documented behavior, not a bug in
+DocumentGroup); `ReportScreen` was *also* wrapping in its own
+`NavigationStack` with its own title/toolbar. Fixed by removing that inner
+`NavigationStack` entirely from both `ReportScreen` and `CaptureScreen` —
+`.navigationTitle`/`.toolbar` applied directly now attach to DocumentGroup's
+one real bar. The "Zatvori" and "Odustani" buttons are gone with it — the
+system-provided back chevron in that single bar already does both (leaving
+`CaptureScreen` via any means — chevron tap, edge-swipe — triggers
+`.onDisappear`, which calls `cancelSession()`, guarded so it's a no-op if
+`stopSession()` already ran cleanly). The room-count badge moved into that
+same toolbar too, so it gets the native iOS 26 Liquid Glass toolbar styling
+for free instead of a hand-rolled `.thinMaterial` capsule approximating it.
+
+Also added there: a trailing (`.primaryAction` — the standard far-right
+slot) Share menu with two options — the real `.archifp` file
+(`ShareLink(item:)` off `FileDocumentConfiguration.fileURL`, which `URL`
+supports natively) and a PDF, which reuses `ReportWebView`'s existing,
+already-working `exportAndSharePDF` pipeline via a second trigger path
+(`pdfExportTrigger` binding) rather than a separate implementation. The
+in-report "Ispis / PDF" button is unchanged, still calls the same code.
+
+### Bug fixed: opening a file with no scan data used to auto-launch capture
+
+`ArchifestDocumentScene` branched only on `document.scan == nil` to decide
+whether to show the capture flow — but `scan` is `nil` for two unrelated
+reasons: a genuinely new empty document (correct to capture), *and* an
+**opened existing file that just has no scan data** (a standalone
+`meta.json` shared without its `scan.json`, or a broken `.archifp`) — both
+looked identical to that one `if`, so opening either silently started
+RoomPlan. Fixed by branching on `(document.source, document.scan)` together
+— `document.source` (`new`/`ownArchive`/`looseJSON`) already existed for
+the "never rewrite an opened loose json into a zip" guard, it just wasn't
+consulted here too. Only `.new` reaches capture now; the other two get a
+`NoScanDataView` instead (showing whatever meta info is present, e.g. a
+lone heading, rather than nothing). **Verified rendered, not just reasoned
+about** — via a temporary debug harness swapping `ArchifestPlanApp`'s scene
+to render `ArchifestDocumentScene` directly against the exact
+`(source: .looseJSON, scan: nil)` shape (screenshotted, then reverted before
+committing) — needed because the real end-to-end path (open an external
+file) hits the same "stops at a human tap" limit noted above.
+
 ### Still needs a real LiDAR device (not verifiable from this environment)
 
 - **The multi-room `StructureBuilder` merge** — built, compiles, but never run

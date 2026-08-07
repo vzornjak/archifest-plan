@@ -8,7 +8,7 @@ import SwiftUI
 struct ArchifestPlanApp: App {
   var body: some Scene {
     DocumentGroup(newDocument: ArchifestDocument.empty) { file in
-      ArchifestDocumentScene(document: file.$document)
+      ArchifestDocumentScene(document: file.$document, fileURL: file.fileURL)
     }
   }
 }
