@@ -1,29 +1,29 @@
 // CaptureScreen — the live RoomPlan capture UI.
 //
-// Flow: dark scrim + "Priprema…" while camera permission is resolved -> a
-// Start button (capture begins exactly on that tap, never before it) ->
-// live view with two press-and-hold round buttons (Next/Stop) in the
+// Flow: a Start button (capture begins exactly on that tap, never before
+// it) -> live view with two press-and-hold round buttons (Next/Stop) in the
 // bottom-right quarter of the screen. No tap-then-dialog anywhere: holding
 // Next fills the top room-count badge orange and advances to the next room
 // once fully held; holding Stop fills it red and ends the session — the
 // hold duration itself is the confirmation.
 //
-// PERFORMANCE, learned the hard way: an earlier revision put `.blur()` on
-// the RoomCaptureView itself to soften the pre-start state. Blurring a live
-// AR camera feed forces SwiftUI to rasterize that view into an offscreen
-// buffer every single frame — the app got hot and sluggish. There is also
-// nothing to blur before Start (the session isn't running yet), so the
-// blur was pure cost for no benefit. It's a plain opaque scrim now.
+// NO BLUR, NO MATERIALS, NO BRIGHTNESS CHANGES anywhere in this screen —
+// deliberately. An earlier revision blurred the live RoomCaptureView and
+// dimmed the screen during capture; the blur forced SwiftUI to rasterize a
+// live AR camera feed into an offscreen buffer every frame (hot, sluggish),
+// and both were removed at the owner's request after that showed up on a
+// real device. Plain opaque colors only. Don't reintroduce `.blur`,
+// `.thinMaterial`, `.shadow` or screen-brightness manipulation here.
 //
-// Same reason the hold progress lives in its own ObservableObject rather
-// than @State here: animating it as view state re-ran this whole body —
-// AR view subtree included — ~60x/second for the length of every hold.
+// The hold progress lives in its own ObservableObject rather than @State
+// here for the same performance reason: animating it as view state re-ran
+// this whole body — AR view subtree included — at animation framerate.
 //
-// No custom "Odustani"/Cancel button either — DocumentGroup already gives
-// this screen a system back chevron (it's hosted inside DocumentGroup's own
+// No custom "Odustani"/Cancel button — DocumentGroup already gives this
+// screen a system back chevron (it's hosted inside DocumentGroup's own
 // navigation bar, not a NavigationStack of our own), and leaving by any
-// means (chevron tap, edge-swipe-back) triggers `.onDisappear`, which cancels
-// the session the same way "Odustani" used to.
+// means (chevron tap, edge-swipe-back) triggers `.onDisappear`, which
+// cancels the session the same way "Odustani" used to.
 import SwiftUI
 import RoomPlan
 import AVFoundation
@@ -46,7 +46,6 @@ struct CaptureScreen: View {
   private enum Phase { case checkingPermission, permissionDenied, readyToStart, live, merging }
 
   @State private var permissionState: PermissionState = .checking
-  @State private var originalBrightness: CGFloat?
 
   private var phase: Phase {
     if coordinator.isMerging { return .merging }
@@ -65,23 +64,21 @@ struct CaptureScreen: View {
 
       switch phase {
       case .checkingPermission:
-        scrim { ProgressView("Priprema…").tint(.white) }
+        cover { ProgressView("Priprema…").tint(.white) }
       case .permissionDenied:
-        scrim { deniedContent }
+        cover { deniedContent }
       case .readyToStart:
-        scrim { startButton }
+        cover { startButton }
       case .live:
         captureControls
       case .merging:
-        scrim {
-          ProgressView("Obrada snimke…")
-            .padding()
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12))
-        }
+        cover { ProgressView("Obrada snimke…").tint(.white) }
       }
     }
     .statusBarHidden()
     .toolbar {
+      // Replaces the navigation title entirely — which is also what removes
+      // DocumentGroup's rename popup (the title + chevron) from this screen.
       ToolbarItem(placement: .principal) {
         RoomCountBadge(hold: hold, roomNumber: coordinator.capturedRoomCount + 1)
       }
@@ -90,13 +87,11 @@ struct CaptureScreen: View {
       coordinator.projectName = projectName
       coordinator.onFinished = onFinished
       UIApplication.shared.isIdleTimerDisabled = true
-      dimBrightnessSlightly()
       Task { await checkPermission() }
     }
     .onDisappear {
       coordinator.cancelSession()
       UIApplication.shared.isIdleTimerDisabled = false
-      restoreBrightness()
     }
     .alert(
       "Greška pri snimanju",
@@ -111,12 +106,12 @@ struct CaptureScreen: View {
     }
   }
 
-  /// Opaque cover for every non-live state. Deliberately not a blur of the
-  /// camera feed — see the note at the top of this file.
+  /// Plain opaque cover for every non-live state. Deliberately a flat color,
+  /// not a blur or a material — see the note at the top of this file.
   @ViewBuilder
-  private func scrim<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+  private func cover<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
     ZStack {
-      Color.black.opacity(0.92).ignoresSafeArea()
+      Color.black.ignoresSafeArea()
       content().foregroundStyle(.white)
     }
   }
@@ -132,9 +127,8 @@ struct CaptureScreen: View {
   }
 
   private var startButton: some View {
-    // Capture begins exactly here, not before — the scrim/"Priprema…" state
-    // above this is only ever camera-permission resolution, never RoomPlan
-    // quietly already running.
+    // Capture begins exactly here, not before — the state above this is only
+    // ever camera-permission resolution, never RoomPlan quietly running.
     Button {
       coordinator.startRoom()
     } label: {
@@ -153,10 +147,10 @@ struct CaptureScreen: View {
       HStack {
         Spacer()
         VStack(spacing: 16) {
-          HoldButton(systemImage: "forward.fill", tint: .orange, duration: 2.5, hold: hold) {
+          HoldButton(systemImage: "forward.fill", tint: .orange, duration: 1.5, hold: hold) {
             coordinator.advanceToNextRoom()
           }
-          HoldButton(systemImage: "stop.fill", tint: .red, duration: 3.5, hold: hold) {
+          HoldButton(systemImage: "stop.fill", tint: .red, duration: 2.5, hold: hold) {
             coordinator.stopSession()
           }
         }
@@ -182,52 +176,33 @@ struct CaptureScreen: View {
       permissionState = .denied
     }
   }
-
-  private func dimBrightnessSlightly() {
-    // Only ever capture the pre-dim value once. onAppear can fire more than
-    // once for the same screen; without this guard each pass would store the
-    // already-dimmed value as "original" and ratchet the screen darker with
-    // no way back.
-    guard originalBrightness == nil else { return }
-    guard let screen = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen else { return }
-    originalBrightness = screen.brightness
-    // Modest reduction, not a forced minimum — helps a little with heat and
-    // battery, but the dominant cost of a RoomPlan scan is the LiDAR sensor
-    // and ARKit/ML processing, not the backlight. Not framed as a real fix.
-    screen.brightness = max(0.15, screen.brightness - 0.2)
-  }
-
-  private func restoreBrightness() {
-    guard
-      let original = originalBrightness,
-      let screen = (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.screen
-    else { return }
-    screen.brightness = original
-    originalBrightness = nil
-  }
 }
 
-/// The room counter, doubling as the hold-progress meter. Observes
-/// `HoldProgress` on its own so an in-flight hold animation re-renders only
-/// this small view, not the whole capture screen (and with it the live AR
-/// view subtree) at animation framerate.
+/// The room counter, doubling as the hold-progress meter. Sits in the
+/// navigation bar's centre slot and is styled to match it — no material
+/// background of its own, which is what made it read as "more frosted" than
+/// the toolbar around it (the toolbar already provides that treatment; a
+/// second layer on top just double-frosts).
+///
+/// Observes `HoldProgress` on its own so an in-flight hold animation
+/// re-renders only this small view, not the whole capture screen (and with
+/// it the live AR view subtree) at animation framerate.
 private struct RoomCountBadge: View {
   @ObservedObject var hold: HoldProgress
   let roomNumber: Int
 
-  private let width: CGFloat = 170
+  private let width: CGFloat = 150
 
   var body: some View {
     ZStack(alignment: .leading) {
-      Capsule().fill(.thinMaterial)
       Capsule()
-        .fill(hold.color)
+        .fill(hold.color.opacity(0.55))
         .frame(width: width * hold.value)
       Text("Prostorija \(roomNumber)")
-        .font(.subheadline.weight(.medium))
+        .font(.headline)
         .frame(width: width)
     }
-    .frame(width: width, height: 32)
+    .frame(width: width, height: 30)
     .clipShape(Capsule())
   }
 }
