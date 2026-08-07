@@ -118,7 +118,8 @@ function updateDevNeedle(){
   const st = window.__compassState;
   if (!n || !devCompass.on || devCompass.heading == null) return;
   if (!st || st.northB == null) { n.style.display = 'none'; if (dbg) dbg.style.display = 'none'; return; }  // plan north unknown
-  const ang = ((st.roseDeg + devCompass.heading) % 360 + 360) % 360;
+  // points at true north as seen from the device — see needleAngleFrom()
+  const ang = needleAngleFrom(devCompass.heading);
   n.style.display = '';
   n.setAttribute('transform', 'rotate(' + ang + ' ' + st.cx + ' ' + st.cy + ')');
   if (dbg) {
@@ -259,7 +260,8 @@ function render(data, filename){
     '(sve jednako ravne, isti tlocrt) bira se ona gdje je sjever najbliže gore — time se ujedno određuje Portrait/Landscape, jer rotacija od 90° mijenja i to. ' +
     'Ručnim prekidačem se to nadjačava, ali tada sjever u pravilu ostaje ~90° od gore. Živa strelica (🧭) dodatno kompenzira trenutni kut rotacije ekrana (screen.orientation) — sirovi kompasni signal mjeri ' +
     'fizički vrh uređaja, ne trenutnu orijentaciju sadržaja na ekranu. Smjer rasta signala je fizički provjeren i invertiran gdje je bilo potrebno — ' +
-    'obrnut od dokumentirane konvencije na testiranom uređaju. ' +
+    'obrnut od dokumentirane konvencije na testiranom uređaju. Strelica pokazuje pravi sjever u odnosu na uređaj (kao pravi kompas), neovisno o rotaciji tlocrta; ' +
+    'kad se poklopi s N oznakom na ruži, tlocrt odgovara prostoriji. ' +
     'Simbol otvaranja vrata (krilo + luk) je konvencija — sken ne bilježi stranu šarki ni smjer otvaranja. ' +
     'Adresa se dohvaća reverse geocodingom (OpenStreetMap Nominatim) — jedino se koordinate iz meta.json šalju tom servisu; sken ostaje lokalno.';
 }
