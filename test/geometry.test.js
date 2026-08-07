@@ -128,6 +128,32 @@ eq('north null without heading', g.northBearingFrom(null, 45), null);
   ok('no meta: override beats panel shape', nm3.landscape === false && nm3.rotDeg === 60);
 }
 
+// --- live compass needle: must show TRUE north, not north-on-the-drawing ---
+{
+  const norm = a => ((a % 360) + 360) % 360;
+  eq('facing north => needle points up', g.needleAngleFrom(0), 0);
+  eq('facing east => needle swings left', g.needleAngleFrom(90), 270);
+  eq('facing south => needle points down', g.needleAngleFrom(180), 180);
+  eq('facing west => needle swings right', g.needleAngleFrom(270), 90);
+  ok('needle never depends on how the plan is rotated',
+    g.needleAngleFrom(0) === g.needleAngleFrom(0));
+
+  // needle meets the rose's N mark exactly when the plan matches the room —
+  // in BOTH orientations, which the previous roseDeg+heading form only
+  // achieved when the plan happened to be near north-up
+  for (const roseDeg of [357, 267, 87, 180]) {
+    const planUpBearing = norm(360 - roseDeg);
+    eq('rose ' + roseDeg + '°: needle meets N when facing plan-up',
+      g.needleAngleFrom(planUpBearing), roseDeg, 1e-9);
+  }
+  // the old formula's failure mode, pinned so it cannot come back
+  const roseP = 267, facingNorth = 0;
+  ok('facing north in a rotated plan does NOT put the needle sideways',
+    Math.min(g.needleAngleFrom(facingNorth), 360-g.needleAngleFrom(facingNorth)) < 5);
+  ok('old roseDeg+heading form would have pointed it ~93° off',
+    Math.abs(norm(roseP + facingNorth) - 267) < 1);
+}
+
 // --- robustness ---
 ok('string enums unwrapped', g.unwrap('wall').name === 'wall');
 eq('degenerate polygon falls back to dims', g.computeArea({ polygonCorners: [[0,0,0],[1,0,0]], dimensions:[2,3,0] }), 6);

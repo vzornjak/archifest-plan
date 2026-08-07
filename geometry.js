@@ -601,6 +601,23 @@ function planOrientation(opts){
   return { rotDeg: norm(-wallAngle + (landscape ? 0 : 90)), landscape, auto: override == null };
 }
 
+// Screen angle (clockwise from the top) at which to draw the live compass
+// needle so it points at TRUE NORTH as seen from the device — a real compass
+// needle: face north and it points up, face east and it swings left.
+//
+// It is deliberately independent of how the plan is rotated. Drawing it at
+// roseDeg + heading instead (where north sits on the DRAWING) looks identical
+// whenever the plan happens to be near north-up, which is why that error
+// survived in Landscape (rose 357°) and only showed up in Portrait, where the
+// plan is rotated ~93° and facing north pointed the needle physically west.
+//
+// Because the rose's N mark is drawn at roseDeg, needle and N coincide exactly
+// when heading equals the plan's up-bearing — i.e. when the drawing matches
+// the room. That makes "turn until the arrow meets N" a valid alignment cue.
+function needleAngleFrom(headingDeg){
+  return ((360 - headingDeg) % 360 + 360) % 360;
+}
+
 function sum(arr, fn){ return arr.reduce((a, x) => a + fn(x), 0); }
 
 function fmt(n){ if (n === null || n === undefined || isNaN(n)) return '—'; return n.toFixed(2); }
@@ -615,7 +632,7 @@ if (typeof module !== 'undefined' && module.exports) {
     esc, unwrap, shoelace2D, reshapeMatrix, localToWorld, computeArea,
     topProfile, topEdgeSloped, profileLength, wallSegment, furnitureRect,
     floorPolygon, CONF_LEVELS, annotate, buildData, catLabel, wallNetArea,
-    reconstructCeilingForRoom, reconstructCeiling, northBearingFrom, planOrientation,
+    reconstructCeilingForRoom, reconstructCeiling, northBearingFrom, planOrientation, needleAngleFrom,
     sum, fmt, fmtArea, APPLE_EPOCH_MS, HEADING_OFFSET_DEG,
     segmentRooms, zoneIdAt, classifyZone, furnitureByZone, wallsByZone,
     OBJECT_VOTES, ZONE_LABELS_HR,
