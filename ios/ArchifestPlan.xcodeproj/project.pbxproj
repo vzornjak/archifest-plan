@@ -13,6 +13,7 @@
 		5D21C6A79CE1E4B0918088DC /* CaptureScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ECC28E7582743C40860A980 /* CaptureScreen.swift */; };
 		6ABF2BFFE67EBD9DA1186BA2 /* sample-scan-meta.json in Resources */ = {isa = PBXBuildFile; fileRef = 2B629790D9F4578974257536 /* sample-scan-meta.json */; };
 		7E9B3AF5798A1A548C7BBDFF /* sample-scan.json in Resources */ = {isa = PBXBuildFile; fileRef = A4585C071A148969CA130DCF /* sample-scan.json */; };
+		82800C520CF65284637554B5 /* ToolbarModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03EB1D5BEA565B8270DBD1F2 /* ToolbarModifiers.swift */; };
 		828B2C480F3231A1D5DB5072 /* RoomCaptureRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59820D412309E0E8AB49394C /* RoomCaptureRepresentable.swift */; };
 		88770C2AD4BE193D7708B01D /* ReportScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48D9375AC02944478C28798A /* ReportScreen.swift */; };
 		9008ACDACDC0E78B0C0C6C3E /* ArchifestZip.swift in Sources */ = {isa = PBXBuildFile; fileRef = B945629B8F5C18C28759EBBD /* ArchifestZip.swift */; };
@@ -26,6 +27,7 @@
 
 /* Begin PBXFileReference section */
 		024C9A24D440180901965D5D /* ScanExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanExport.swift; sourceTree = "<group>"; };
+		03EB1D5BEA565B8270DBD1F2 /* ToolbarModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarModifiers.swift; sourceTree = "<group>"; };
 		0D4B9498E827B82929A67F6E /* ArchifestPlanApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchifestPlanApp.swift; sourceTree = "<group>"; };
 		279045E9861EBAE68F41E1F1 /* HeadingReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadingReader.swift; sourceTree = "<group>"; };
 		2B629790D9F4578974257536 /* sample-scan-meta.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "sample-scan-meta.json"; sourceTree = "<group>"; };
@@ -83,6 +85,7 @@
 			isa = PBXGroup;
 			children = (
 				0D4B9498E827B82929A67F6E /* ArchifestPlanApp.swift */,
+				03EB1D5BEA565B8270DBD1F2 /* ToolbarModifiers.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -253,6 +256,7 @@
 				828B2C480F3231A1D5DB5072 /* RoomCaptureRepresentable.swift in Sources */,
 				23B543DBADE4A562797C9460 /* ScanExport.swift in Sources */,
 				9C3117EAF425F44E2D252201 /* ScanMeta.swift in Sources */,
+				82800C520CF65284637554B5 /* ToolbarModifiers.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

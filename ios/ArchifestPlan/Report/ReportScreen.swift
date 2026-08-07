@@ -25,15 +25,12 @@ struct ReportScreen: View {
     )
     .ignoresSafeArea(edges: .bottom)
     .navigationBarTitleDisplayMode(.inline)
+    // Drops DocumentGroup's document name and rename chevron — neither is
+    // wanted here. See the helper in ToolbarModifiers.swift for why a
+    // `.principal` item alone doesn't do it and what the availability
+    // caveat is.
+    .removingNavigationTitle()
     .toolbar {
-      // A plain principal item rather than `.navigationTitle` — that's what
-      // replaces DocumentGroup's own title view, and with it the rename
-      // popup (title + chevron) the owner didn't want.
-      ToolbarItem(placement: .principal) {
-        Text(name.isEmpty ? "Izvještaj" : name)
-          .font(.headline)
-          .lineLimit(1)
-      }
       // Far trailing edge — the standard "all the way right" toolbar slot.
       ToolbarItem(placement: .primaryAction) {
         Menu {

@@ -59,9 +59,11 @@ struct CaptureScreen: View {
       }
     }
     .statusBarHidden()
+    // Drops DocumentGroup's document name and rename chevron — see the
+    // helper in ToolbarModifiers.swift for why a `.principal` item alone
+    // doesn't do it and what the availability caveat is.
+    .removingNavigationTitle()
     .toolbar {
-      // Replaces the navigation title entirely — which is also what removes
-      // DocumentGroup's rename popup (the title + chevron) from this screen.
       ToolbarItem(placement: .principal) {
         RoomCountBadge(hold: hold, roomNumber: coordinator.capturedRoomCount + 1)
       }
@@ -135,10 +137,9 @@ struct CaptureScreen: View {
 }
 
 /// The room counter, doubling as the hold-progress meter. Sits in the
-/// navigation bar's centre slot and is styled to match it — no material
-/// background of its own, which is what made it read as "more frosted" than
-/// the toolbar around it (the toolbar already provides that treatment; a
-/// second layer on top just double-frosts).
+/// navigation bar's centre slot on real system Liquid Glass — not a
+/// hand-rolled `.thinMaterial` imitation of it, which is what an earlier
+/// pass used and what read as "more frosted" than the bar around it.
 ///
 /// Observes `HoldProgress` on its own so an in-flight hold animation
 /// re-renders only this small view, not the whole capture screen (and with
@@ -160,6 +161,21 @@ private struct RoomCountBadge: View {
     }
     .frame(width: width, height: 30)
     .clipShape(Capsule())
+    .roomBadgeGlass()
+  }
+}
+
+private extension View {
+  /// Genuine Liquid Glass where the OS has it (iOS 26+, `glassEffect`),
+  /// falling back to the closest pre-Liquid-Glass equivalent below that —
+  /// the deployment target is still iOS 17, so this can't be unconditional.
+  @ViewBuilder
+  func roomBadgeGlass() -> some View {
+    if #available(iOS 26.0, *) {
+      self.glassEffect(.regular, in: Capsule())
+    } else {
+      self.background(.thinMaterial, in: Capsule())
+    }
   }
 }
 
