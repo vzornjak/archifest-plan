@@ -170,6 +170,19 @@ function wallNetArea(data, w){
   return Math.max(0, w.area - Math.min(openA, w.area));
 }
 
+// Trade convention, not geometry: when painting, an opening up to this size is
+// not deducted at all — the time saved on the hole is spent right back on its
+// reveals, corners and masking. Above it, only the excess comes off (a 4 m²
+// opening deducts 1 m²). Net area stays the geometrically honest number and is
+// what cross-checks against meta.json; this is the one that goes in a quote.
+const PAINT_FREE_OPENING_M2 = 3;
+
+function wallPaintArea(data, w){
+  const deduct = sum(data.openings.filter(o => o.parentIdentifier === w.identifier),
+                     o => Math.max(0, o.area - PAINT_FREE_OPENING_M2));
+  return Math.max(0, w.area - Math.min(deduct, w.area));
+}
+
 // ---------- Room segmentation (raster/flood-fill, no external geometry library) ----------
 //
 // Raw RoomPlan JSON gives one floor polygon for the whole level and no per-room
@@ -447,6 +460,7 @@ function wallsByZone(data, segmentation){
     }
 
     const fullNet = wallNetArea(data, w);
+    const fullPaint = wallPaintArea(data, w);
     for (const [zid, covered] of coveredByZone) {
       // share can legitimately exceed 1 (up to 2) when BOTH faces of a wall
       // belong to the same room — a partition or nook divider jutting into it.
@@ -456,14 +470,43 @@ function wallsByZone(data, segmentation){
       if (!map.has(zid)) map.set(zid, []);
       map.get(zid).push({
         wall: w,
+        grossArea: w.area * share,
         netArea: fullNet * share,
+        paintArea: fullPaint * share,
         fullNetArea: fullNet,
+        fullPaintArea: fullPaint,
         share,
         sharedWith: [...(neighbours.get(zid) || [])]
       });
     }
   }
   return map;
+}
+
+// Control: how much wall never made it into ANY room's list. A wall silently
+// vanishing from the per-room breakdown is a real failure mode (it was the bug
+// behind 29-146% per-room errors before length-walking replaced midpoint
+// sampling), and unlike the floor there is no external figure to compare the
+// split against — so completeness is what gets watched instead.
+// Shares above 1 (both faces of a partition in one room) are capped here: this
+// asks "was the whole wall seen?", not "how many faces were counted?".
+const WALL_COVERAGE_MIN = 0.98;
+function wallCoverage(data, segmentation){
+  const byWall = new Map();
+  for (const list of wallsByZone(data, segmentation).values()) {
+    for (const e of list) byWall.set(e.wall.identifier, (byWall.get(e.wall.identifier) || 0) + Math.min(e.share, 1));
+  }
+  const walls = [];
+  let missingArea = 0, totalArea = 0;
+  for (const w of data.walls) {
+    const assigned = Math.min(byWall.get(w.identifier) || 0, 1);
+    totalArea += w.area;
+    if (assigned < WALL_COVERAGE_MIN) {
+      missingArea += w.area * (1 - assigned);
+      walls.push({ wall: w, assigned });
+    }
+  }
+  return { walls, missingArea, totalArea, assignedFraction: totalArea > 0 ? 1 - missingArea/totalArea : 1 };
 }
 
 // A knee wall's top edge sits exactly at the roof section's knee, so matching
@@ -729,7 +772,7 @@ function fmtArea(n){ if (n === null || n === undefined || isNaN(n)) return '—'
 // Bump together with the ?v= query strings in index.html when shipping —
 // mobile Safari otherwise keeps serving stale JS after a deploy, which has
 // repeatedly led to fixes being tested against old code.
-const APP_VERSION = '2026-08-07e';
+const APP_VERSION = '2026-08-07f';
 
 const APPLE_EPOCH_MS = 978307200000; // 2001-01-01 UTC — Apple/Core Data reference date
 
@@ -738,10 +781,10 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     esc, unwrap, shoelace2D, reshapeMatrix, localToWorld, computeArea,
     topProfile, topEdgeSloped, profileLength, wallSegment, furnitureRect,
-    floorPolygon, CONF_LEVELS, annotate, buildData, catLabel, wallNetArea,
+    floorPolygon, CONF_LEVELS, annotate, buildData, catLabel, wallNetArea, wallPaintArea, PAINT_FREE_OPENING_M2,
     reconstructCeilingForRoom, reconstructCeiling, northBearingFrom, planOrientation,
     sum, fmt, fmtArea, APPLE_EPOCH_MS, APP_VERSION, HEADING_OFFSET_DEG,
-    segmentRooms, zoneIdAt, classifyZone, furnitureByZone, wallsByZone, ceilingByZone,
+    segmentRooms, zoneIdAt, classifyZone, furnitureByZone, wallsByZone, ceilingByZone, wallCoverage,
     OBJECT_VOTES, ZONE_LABELS_HR,
     CELL_M, WALL_BAND_HALF_M, MIN_ZONE_AREA_M2
   };

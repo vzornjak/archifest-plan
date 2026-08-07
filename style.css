@@ -35,6 +35,11 @@
   #report.show{ display:block; }
 
   .layout{ display:grid; grid-template-columns: 1.35fr 1fr; gap:20px; align-items:start; }
+  /* grid items default to min-width:auto, so a wide table inside a column
+     refuses to shrink and pushes the whole page sideways on a phone — the
+     panels already scroll their own overflow, they just need permission to
+     be narrower than their content */
+  .layout > *{ min-width: 0; }
   @media (max-width: 920px){
     .layout{ grid-template-columns: 1fr; }
   }

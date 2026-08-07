@@ -213,11 +213,74 @@ ok('esc neutralizes html', g.esc('<img onerror=x>') === '&lt;img onerror=x&gt;')
   eq('per-room areas sum to the floor polygon exactly', exactTotal, g.sum(twoRoomData.floors, f => f.area), 1e-9);
   ok('raster area is kept alongside for diagnostics', seg.zones.every(z => z.areaRaster > 0 && z.areaRaster <= z.areaExact + 1e-9));
 
+  // painting counts both sides of a shared wall, one item per room
+  ok('shared wall carries its full painting area on BOTH sides',
+    Math.abs(sharedInKitchen.paintArea - 3*H) < 0.05 && Math.abs(sharedInBedroom.paintArea - 3*H) < 0.05);
+  ok('per-room gross is reported alongside net and paint',
+    kitchenWalls.every(w => w.grossArea >= w.netArea - 1e-9 && w.paintArea >= w.netArea - 1e-9 && w.paintArea <= w.grossArea + 1e-9));
+  // this fixture has no openings at all, so the two must coincide exactly
+  ok('with no openings, painting equals net', kitchenWalls.every(w => Math.abs(w.paintArea - w.netArea) < 1e-9));
+
+  // with a 2 m² door in the shared wall, painting ignores it but net does not —
+  // and both still follow the per-room share
+  const doorInShared = { identifier:'D-S', category:{door:{isOpen:false}}, confidence:{high:{}},
+                         dimensions:[1,2,0], transform: mat(0,1, 4,1,1.5), parentIdentifier:'shared' };
+  const doorData = g.buildData({ rooms:[{ walls: twoRoomWalls, doors:[doorInShared], objects:[], floors:[floorA, floorB] }] });
+  const doorMap = g.wallsByZone(doorData, g.segmentRooms(doorData));
+  const sharedSides = [...doorMap.values()].map(l => l.find(x => x.wall.identifier === 'shared')).filter(Boolean);
+  eq('shared wall still reaches both rooms with a door in it', sharedSides.length, 2);
+  ok('net deducts the 2 m² door on each side', sharedSides.every(x => Math.abs(x.netArea - (3*H - 2)) < 0.05));
+  ok('painting ignores it on each side', sharedSides.every(x => Math.abs(x.paintArea - 3*H) < 0.05));
+
+  // every wall must be accounted for by some room — one silently missing from
+  // the per-room split is the failure this control exists to catch
+  const cov = g.wallCoverage(twoRoomData, seg);
+  eq('no wall is left out of the per-room split', cov.walls.length, 0);
+  eq('nothing unattributed', cov.missingArea, 0, 1e-9);
+  eq('coverage reported as a full fraction', cov.assignedFraction, 1, 1e-9);
+
+  // and it must actually fire: a wall far outside every room borders nothing
+  const stray = wall2('stray', 2, 1,0, 40,40);
+  const strayData = g.buildData({ rooms:[{ walls:[...twoRoomWalls, stray], objects:[], floors:[floorA, floorB] }] });
+  const strayCov = g.wallCoverage(strayData, g.segmentRooms(strayData));
+  ok('a wall bordering no room is reported', strayCov.walls.some(c => c.wall.identifier === 'stray'));
+  ok('its area counts as missing', strayCov.missingArea > 0 && strayCov.assignedFraction < 1);
+
   // a room with no sloped wall of its own must not inherit another room's roof
   const ceilByZone = g.ceilingByZone(twoRoomData, seg);
   ok('flat rooms get a flat ceiling equal to their own floor',
     seg.zones.every(z => ceilByZone.get(z.zoneId).flat &&
       Math.abs(ceilByZone.get(z.zoneId).ceilingArea - z.areaExact) < 1e-9));
+}
+
+// --- painting area: openings up to 3 m2 are not deducted at all, above it only
+// the excess comes off (trade convention, not geometry) ---
+{
+  const FREE = g.PAINT_FREE_OPENING_M2;
+  eq('threshold is 3 m²', FREE, 3);
+
+  const wall10 = { identifier:'P-W', category:{wall:{}}, confidence:{high:{}}, dimensions:[5,2,0], transform: mat(1,0, 0,1,0) };
+  const mk = (id, w, h) => ({ identifier:id, category:{window:{}}, confidence:{high:{}}, dimensions:[w,h,0], transform: mat(1,0, 0,1,0), parentIdentifier:'P-W' });
+  const build = (...openings) => g.buildData({ rooms:[{ walls:[wall10], windows: openings }] });
+
+  const small = build(mk('S', 1, 2));           // 2 m² — under the threshold
+  eq('small opening is not deducted at all', g.wallPaintArea(small, small.walls[0]), 10, 1e-9);
+  eq('net still deducts it in full', g.wallNetArea(small, small.walls[0]), 8, 1e-9);
+
+  const big = build(mk('B', 2, 2));             // 4 m² — 1 m² over
+  eq('large opening deducts only the excess', g.wallPaintArea(big, big.walls[0]), 9, 1e-9);
+  eq('net deducts the whole 4 m²', g.wallNetArea(big, big.walls[0]), 6, 1e-9);
+
+  const two = build(mk('A', 1, 2), mk('B', 2, 2));  // 2 m² + 4 m²
+  eq('each opening gets its own allowance', g.wallPaintArea(two, two.walls[0]), 9, 1e-9);
+
+  const huge = build(mk('H', 10, 2));           // 20 m² on a 10 m² wall
+  eq('paint area clamps at zero', g.wallPaintArea(huge, huge.walls[0]), 0);
+
+  for (const d of [small, big, two, huge]) {
+    const w = d.walls[0];
+    ok('paint sits between net and gross', g.wallPaintArea(d, w) >= g.wallNetArea(d, w) - 1e-9 && g.wallPaintArea(d, w) <= w.area + 1e-9);
+  }
 }
 
 // --- ceiling: flat part + slope (regression for the "ceiling smaller than the

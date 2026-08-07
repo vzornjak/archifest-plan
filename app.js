@@ -145,8 +145,8 @@ function render(data, filename){
   const ceilMap = ceilingByZone(data, seg);
   const roomFloor = sum(seg.zones, z => z.areaExact);
   const roomCeiling = sum(seg.zones, z => ceilMap.get(z.zoneId).ceilingArea);
-  let wallFaces = 0, roomWallNet = 0;
-  for (const list of wallMap.values()) { wallFaces += list.length; roomWallNet += sum(list, w => w.netArea); }
+  let wallFaces = 0, roomWallPaint = 0;
+  for (const list of wallMap.values()) { wallFaces += list.length; roomWallPaint += sum(list, w => w.paintArea); }
 
   const wallIds = new Set(data.walls.map(w => w.identifier));
   const unlinkedOpenings = data.openings.filter(o => !wallIds.has(o.parentIdentifier));
@@ -170,12 +170,13 @@ function render(data, filename){
     'Strop (rekonstruirano)': fmtArea(ceilingArea),
     'Zidovi (bruto)': fmtArea(grossWallArea),
     'Zidovi (neto)': fmtArea(netWallArea),
-    'Zidovi po sobama': zoneCount ? fmtArea(roomWallNet) : '—',
+    'Zidovi za bojanje': zoneCount ? fmtArea(roomWallPaint) : fmtArea(sum(data.walls, w => wallPaintArea(data, w))),
     'Otvori ukupno': fmtArea(openingArea),
     'Strop − pod': (ceilingArea != null && podArea ? (ceilingArea-podArea >= 0 ? '+' : '') + fmtArea(ceilingArea-podArea) : '—'),
   };
   renderStats(statsObj);
   renderFloorCheck(seg, floorArea);
+  renderWallCheck(data, seg, grossWallArea, openingArea, netWallArea);
 
   renderMetaPanel();
   renderZones(data, seg);
@@ -190,7 +191,10 @@ function render(data, filename){
     'RoomPlan-ova podjela se ne koristi kao struktura izvještaja — cijeli sken dolazi kao jedan rooms[0] zapis, pa njegov roomCount znači "jedno snimanje", ne jedna prostorija. ' +
     'Prostorije se pronalaze segmentacijom tlocrta, i pod, strop i zidovi računaju se po svakoj takvoj prostoriji zasebno. ' +
     'Površine soba normaliziraju se na poligon poda, pa im je zbroj točno jednak ukupnom podu (mreža sama po sebi mjeri nešto manje). ' +
-    'Neto površina zidova koristi parentIdentifier za povezivanje otvora s pravim zidom; ukupni "Zidovi (neto)" broje svaki zid jednom, a "Zidovi po sobama" dijeljeni zid s obje strane (broj za premaz). ' +
+    'Neto površina zidova koristi parentIdentifier za povezivanje otvora s pravim zidom; ukupni "Zidovi (neto)" broje svaki zid jednom. ' +
+    '"Zidovi za bojanje" je zanatska konvencija, ne geometrija: otvor do 3 m² se uopće ne odbija jer se vrijeme ušteđeno na rupi potroši na špalete, ćoškove i zaštitu, ' +
+    'a preko toga se odbija samo razlika (otvor od 4 m² odbija 1 m²). Taj zbroj ide po prostorijama, pa dijeljeni zid ulazi s obje strane — svaka strana treba svoj premaz. ' +
+    'Kontrolni retci ispod Pregleda pokazuju kvadrature poda po sobi naspram mete, te bruto − otvori naspram metine neto vrijednosti i koliko je zida uopće pripisano sobama. ' +
     'Strop nije izravno skeniran (RoomPlan nema "ceiling" kategoriju) — računa se kao pod te prostorije uvećan za višak koji kosina dodaje iznad svoje tlocrtne projekcije. ' +
     'Ravni dio stropa je time točno poznat, a procjenjuje se samo dužina kosine — i ona se mjeri iz koljenastog zida, prepoznatog po visini koja odgovara koljenu iz presjeka. ' +
     'Pretpostavka je isti poprečni presjek kroz cijelu prostoriju (jednostavan jednostrešni/dvostrešni krov); za krovove koji se mijenjaju u oba smjera metoda nije pouzdana i to se ispisuje uz prostoriju. ' +
@@ -251,10 +255,37 @@ function renderFloorCheck(seg, floorArea){
   el.style.display = '';
 }
 
+// Walls get two checks. The first IS against an independent figure after all:
+// meta.json's wallAreaSquareMetres is the app's own net area, so gross minus
+// every opening has to land on it. The second watches completeness of the
+// per-room split — a wall quietly missing from every room's list is the real
+// failure mode here, and nothing external can catch it.
+// (A third was tried and dropped: room perimeter from the raster against the
+// summed wall lengths runs 8-11% low on every scan, because the grid boundary
+// staircases around angled walls. A check that always cries wolf is worse than
+// no check.)
+function renderWallCheck(data, seg, gross, openings, net){
+  const el = document.getElementById('wallCheck');
+  if (!el) return;
+  const metaWall = window.__meta && window.__meta.wallAreaSquareMetres;
+  let txt = 'kontrola zidova: bruto ' + fmt(gross) + ' − otvori ' + fmt(openings) + ' = ' + fmt(net) + ' m²' +
+    (metaWall != null ? ' · meta ' + metaWall.toFixed(3) + (Math.abs(net - metaWall) < 0.01 ? ' ✓' : ' ⚠') : '');
+  if (seg && seg.zones.length) {
+    const cov = wallCoverage(data, seg);
+    txt += ' · pripisano sobama ' + (cov.assignedFraction*100).toFixed(1) + '%';
+    txt += cov.walls.length
+      ? ' (' + fmt(cov.missingArea) + ' m² nije: ' + cov.walls.map(c => esc(String(c.wall.identifier).slice(0,8)) + ' ' + Math.round(c.assigned*100) + '%').join(', ') + ')'
+      : ' (sve)';
+  }
+  el.innerHTML = txt;
+  el.style.display = '';
+}
+
 function renderStats(obj){
   const grid = document.getElementById('statsGrid');
   grid.innerHTML = Object.entries(obj).map(([label, value]) => {
-    const hl = label.includes('Strop') ? ' hl' : '';
+    // the two figures a quote is actually built from
+    const hl = (label.includes('Strop') || label.includes('bojanje')) ? ' hl' : '';
     return '<div class="stat' + hl + '"><div class="label">' + label + '</div><div class="value">' + value + '</div></div>';
   }).join('');
 }
@@ -298,18 +329,20 @@ function renderZonesSegmented(el, data, seg){
   ordered.forEach((z) => {
     const objs = furnByZone.get(z.zoneId) || [];
     const title = titles.get(z.zoneId);
-    const walls = (wallMap.get(z.zoneId) || []).slice().sort((a,b) => b.netArea - a.netArea);
-    const wallsTotal = sum(walls, w => w.netArea);
+    const walls = (wallMap.get(z.zoneId) || []).slice().sort((a,b) => b.paintArea - a.paintArea);
+    const wGross = sum(walls, w => w.grossArea);
+    const wNet = sum(walls, w => w.netArea);
+    const wPaint = sum(walls, w => w.paintArea);
     const ceil = ceilMap.get(z.zoneId);
 
     html += '<div class="zone-block">';
     html += '<div class="zone-title">' + esc(title) + '</div>';
     html += '<div class="zone-sub">' + fmtArea(z.area) + ' pod · ' +
       (ceil ? fmtArea(ceil.ceilingArea) + ' strop' + (ceil.flat ? ' (ravan)' : '') + ' · ' : '') +
-      fmtArea(wallsTotal) + ' zidovi (za premaz)' +
+      'zidovi: ' + fmt(wGross) + ' bruto / ' + fmt(wNet) + ' neto / <strong style="color:var(--amber);">' + fmt(wPaint) + ' m² bojanje</strong>' +
       (objs.length ? ' · ' + objs.map(o=>esc(catLabel(o))).join(' · ') : ' · nema namještaja') + '</div>';
     if (walls.length) {
-      html += '<table style="margin-top:6px;"><thead><tr><th>Zid</th><th>Dim (m)</th><th>Površina</th></tr></thead><tbody>';
+      html += '<table style="margin-top:6px;"><thead><tr><th>Zid</th><th>Dim (m)</th><th>Bruto</th><th>Neto</th><th>Bojanje</th></tr></thead><tbody>';
       html += walls.map(w => {
         const wg = w.wall;
         const badge = w.sharedWith.length ? ' <span class="badge b-shared">dijeljen</span>' : '';
@@ -317,7 +350,7 @@ function renderZonesSegmented(el, data, seg){
         // or one whose both faces are inside this room, is worth showing
         const partial = Math.abs(w.share - 1) > 0.02
           ? ' <span class="badge b-part">' + Math.round(w.share*100) + '%</span>' : '';
-        return '<tr><td>' + esc(String(wg.identifier).slice(0,8)) + badge + partial + '</td><td>' + wg.dimensions[0].toFixed(2) + ' × ' + wg.dimensions[1].toFixed(2) + '</td><td>' + fmt(w.netArea) + '</td></tr>';
+        return '<tr><td>' + esc(String(wg.identifier).slice(0,8)) + badge + partial + '</td><td>' + wg.dimensions[0].toFixed(2) + ' × ' + wg.dimensions[1].toFixed(2) + '</td><td>' + fmt(w.grossArea) + '</td><td>' + fmt(w.netArea) + '</td><td style="color:var(--amber);">' + fmt(w.paintArea) + '</td></tr>';
       }).join('');
       html += '</tbody></table>';
     }
@@ -329,7 +362,8 @@ function renderZonesSegmented(el, data, seg){
     note.textContent = 'Automatska segmentacija (mreža ' + (CELL_M*100).toFixed(0) + ' cm) — granice i klasifikacija su procjena. ' +
       'Svaka soba dobiva onaj dio zida koji stvarno graniči s njom: "dijeljen" zid ulazi punom površinom u obje sobe (svaka strana svoj premaz), ' +
       'a zid koji se proteže kroz više soba dijeli se po stvarnoj dužini (postotak uz zid). Pregradni zid s oba lica u istoj sobi broji se dvaput. ' +
-      'Ukupni zbroj zidova u Pregledu i dalje broji svaki zid jednom.';
+      'Bojanje = bruto umanjeno samo za otvore veće od ' + PAINT_FREE_OPENING_M2 + ' m², i to samo za razliku preko te granice — otvori do te veličine se ne odbijaju. ' +
+      'Retci "Zidovi (bruto)" i "Zidovi (neto)" u Pregledu i dalje broje svaki zid jednom; "Zidovi za bojanje" je zbroj po sobama.';
     note.style.display = '';
   }
 }
@@ -369,11 +403,12 @@ function confBadge(level){
 
 function renderWallsTable(data){
   const tbody = document.querySelector('#wallsTable tbody');
-  if (!data.walls.length) { tbody.innerHTML = '<tr><td colspan="5" style="color:var(--ink-faint);">Nema podataka</td></tr>'; return; }
+  if (!data.walls.length) { tbody.innerHTML = '<tr><td colspan="6" style="color:var(--ink-faint);">Nema podataka</td></tr>'; return; }
   tbody.innerHTML = data.walls.map(w => {
     const net = wallNetArea(data, w);
+    const paint = wallPaintArea(data, w);
     const slopeBadge = w.hasSlope ? ' <span class="badge b-slope">kosina</span>' : '';
-    return '<tr><td>' + esc(String(w.identifier).slice(0,8)) + slopeBadge + '</td><td>' + w.dimensions[0].toFixed(2) + ' × ' + w.dimensions[1].toFixed(2) + '</td><td>' + fmt(w.area) + '</td><td>' + fmt(net) + '</td><td>' + confBadge(w.confLevel) + '</td></tr>';
+    return '<tr><td>' + esc(String(w.identifier).slice(0,8)) + slopeBadge + '</td><td>' + w.dimensions[0].toFixed(2) + ' × ' + w.dimensions[1].toFixed(2) + '</td><td>' + fmt(w.area) + '</td><td>' + fmt(net) + '</td><td style="color:var(--amber);">' + fmt(paint) + '</td><td>' + confBadge(w.confLevel) + '</td></tr>';
   }).join('');
 }
 
