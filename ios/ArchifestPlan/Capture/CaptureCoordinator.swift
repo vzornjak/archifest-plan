@@ -150,27 +150,58 @@ final class CaptureCoordinator: NSObject, ObservableObject {
 // — that form hit an unrelated NSCoding conformance error from the compiler
 // for this particular @objc protocol; this is the well-established pattern.
 extension CaptureCoordinator: RoomCaptureViewDelegate {
+  /// Returns **false** — deliberately. Per Apple's docs, returning `true`
+  /// makes RoomCaptureView "display the scanned room in a 3D rendition that
+  /// the user can inspect using touch gestures" before you can continue.
+  /// That review is exactly what we don't want: Next is meant to walk
+  /// straight into the next room, and Stop goes straight to the report,
+  /// which is itself the review.
+  ///
+  /// The cost of skipping it is that `captureView(didPresent:)` is then
+  /// never called, so we process the raw data ourselves with `RoomBuilder`
+  /// (the documented path for exactly this). For Next that's a bonus: the
+  /// finished room processes in the background while the next room is
+  /// already being captured.
   nonisolated func captureView(shouldPresent roomDataForProcessing: CapturedRoomData, error: (any Error)?) -> Bool {
-    true
-  }
-
-  nonisolated func captureView(didPresent processedResult: CapturedRoom, error: (any Error)?) {
     let message = error?.localizedDescription
     Task { @MainActor in
-      if let message {
-        self.errorMessage = message
-        self.isCapturing = false
-        return
-      }
-      self.capturedRooms.append(processedResult)
-      self.capturedRoomCount = self.capturedRooms.count
-      self.isCapturing = false
-      switch self.pendingAction {
-      case .nextRoom:
-        self.startRoom()
-      case .finish:
-        self.finishSession()
-      }
+      await self.processCapturedRoom(roomDataForProcessing, errorMessage: message)
+    }
+    return false
+  }
+}
+
+private extension CaptureCoordinator {
+  func processCapturedRoom(_ data: CapturedRoomData, errorMessage message: String?) async {
+    if let message {
+      self.errorMessage = message
+      isCapturing = false
+      return
+    }
+
+    // Start the next room *before* awaiting the build: with
+    // stop(pauseARSession: false) the AR session is still tracking, and the
+    // owner walking through a doorway shouldn't have to wait for the
+    // previous room to finish processing.
+    let action = pendingAction
+    isCapturing = false
+    if action == .nextRoom {
+      startRoom()
+    } else {
+      // Show "Obrada snimke…" for the whole wait, not just the merge that
+      // follows it — otherwise the screen sits blank while RoomBuilder works.
+      isMerging = true
+    }
+
+    do {
+      // Same option as the multi-room merge in finishSession() — the only
+      // one RoomPlan exposes (furniture placement).
+      let room = try await RoomBuilder(options: [.beautifyObjects]).capturedRoom(from: data)
+      capturedRooms.append(room)
+      capturedRoomCount = capturedRooms.count
+      if action == .finish { finishSession() }
+    } catch {
+      self.errorMessage = error.localizedDescription
     }
   }
 }

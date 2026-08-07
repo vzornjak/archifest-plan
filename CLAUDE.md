@@ -256,6 +256,18 @@ complete public member lists, not guessed:
   `stop(pauseARSession:)`, checked directly. A "Pause" button was considered
   and dropped for exactly this reason (owner's call, after seeing there was
   nothing real for it to control).
+- **`RoomCaptureView`'s post-scan 3D review is opt-out, and we opt out.**
+  Returning `true` from `captureView(shouldPresent:error:)` — the default,
+  and what this app did at first — makes the view "display the scanned room
+  in a 3D rendition that the user can inspect using touch gestures" every
+  time a room ends. That fought the whole point of the Next button (walk
+  through a doorway, keep going) and added a step before the report on Stop.
+  We return **`false`** now. The trade: `captureView(didPresent:)` is then
+  never called, so the raw `CapturedRoomData` is processed by us via
+  `RoomBuilder(options:).capturedRoom(from:)` (iOS 16+, async throws) —
+  Apple's documented path for exactly this case, not a workaround. Bonus on
+  Next: the finished room builds in the background while the next room is
+  already being captured, so there's no wait at the doorway.
 
 ### Capture controls: hold-to-confirm Next/Stop, not tap-then-dialog
 
