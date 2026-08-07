@@ -416,9 +416,8 @@ function confBadge(level){
 // arithmetic:  m² = W·H − Σ(ΔW·ΔH)/2  — one term per sloping segment, so a
 // two-sided gable shows two.
 function slopeEquationRow(w, colspan){
-  const { triangles, cutArea } = slopeCutTriangles(w);
+  const { triangles, cutArea, W, H } = slopeCutTriangles(w);
   if (!triangles.length) return '';
-  const W = w.dimensions[0], H = w.dimensions[1];
   const terms = triangles.map(t => '(' + t.dW.toFixed(2) + ' × ' + t.dH.toFixed(2) + ')/2').join(' − ');
   return '<tr><td colspan="' + colspan + '" class="eq-cell"><span class="eq">' +
     W.toFixed(2) + ' × ' + H.toFixed(2) + ' − ' + terms + ' = ' + (W*H - cutArea).toFixed(2) + ' m²' +
@@ -476,7 +475,8 @@ function renderCeilingPanel(data, seg){
     if (c.method === 'knee') {
       formula = 'pod ' + fmt(c.floorArea) + ' m² + kosina ' + c.slopeSurplus.toFixed(4) + ' m po metru širine × ' + fmt(c.slopeExtent) + ' m dužine = <strong style="color:var(--line-bright);">' + fmt(c.ceilingArea) + ' m²</strong>. ' +
         'Ravni dio stropa je već točno poznat iz tlocrta poda, pa se procjenjuje samo koliko površine kosina dodaje iznad svoje tlocrtne projekcije. ' +
-        'Dužina kosine nije pretpostavljena nego izmjerena — to je dužina koljenastog zida (' + c.kneeWallIds.map(x => esc(String(x).slice(0,8))).join(', ') + '), prepoznatog po tome što mu visina odgovara koljenu iz presjeka.';
+        'Dužina kosine nije pretpostavljena nego izmjerena — to je dužina najdulje strane s koljenastim zidom (' + c.kneeWallIds.map(x => esc(String(x).slice(0,8))).join(', ') + '), prepoznatog po tome što mu visina odgovara koljenu iz presjeka. ' +
+        'Obje strane krova protežu se istom dužinom sobe, pa jedna strana daje cijelu dužinu' + (c.kneeSides.length > 1 ? ' — ovdje su pronađene ' + c.kneeSides.length + ' strane' : ' — ovdje je pronađena jedna strana') + '.';
     } else if (c.method === 'section') {
       formula = 'pod ' + fmt(c.floorArea) + ' m² × ' + c.sectionRatio.toFixed(4) + ' = <strong style="color:var(--line-bright);">' + fmt(c.ceilingArea) + ' m²</strong>. ' +
         'Faktor je dužina presjeka podijeljena s njegovim horizontalnim rasponom — koliko je kosi strop duži od svoje tlocrtne projekcije. ' +

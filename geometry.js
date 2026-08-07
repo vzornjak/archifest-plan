@@ -98,15 +98,20 @@ function wallHeightAt(w, localX){
 // Verified against the shoelace area to 1e-9 for a single slope and for a
 // two-sided gable (two terms).
 function slopeCutTriangles(w){
-  if (!w.polygonCorners || w.polygonCorners.length < 3) return { triangles: [], cutArea: 0 };
-  const { pts } = topProfile(w);
+  if (!w.polygonCorners || w.polygonCorners.length < 3) {
+    return { triangles: [], cutArea: 0, W: w.dimensions[0], H: w.dimensions[1] };
+  }
+  const { pts, minY, maxY } = topProfile(w);
   const triangles = [];
   for (let i = 0; i < pts.length-1; i++) {
     const dW = Math.abs(pts[i+1][0] - pts[i][0]);
     const dH = Math.abs(pts[i+1][1] - pts[i][1]);
     if (dH > 0.02) triangles.push({ dW, dH, area: dW*dH/2 });
   }
-  return { triangles, cutArea: triangles.reduce((a,t) => a + t.area, 0) };
+  // H comes from the polygon, not dimensions[1] — the equation exists to
+  // reconcile with the shoelace area, so both sides must read the same shape
+  return { triangles, cutArea: triangles.reduce((a,t) => a + t.area, 0),
+           W: w.dimensions[0], H: maxY - minY };
 }
 
 function profileLength(pts){
@@ -569,6 +574,10 @@ function wallCoverage(data, segmentation){
 // 1.649 m and the section's knee came out 1.649 m, while every other wall in
 // the room stood at the 2.483 m ridge height.
 const KNEE_MATCH_TOL_M = 0.06;
+// knee walls this close along the section axis count as the same side of
+// the roof — wide enough to re-join a side split by a doorway, narrow
+// enough not to merge the two opposite sides of any real room
+const KNEE_SIDE_TOL_M = 0.5;
 // two sloped walls count as facing the same way (one extrusion direction)
 // when their headings agree modulo 180°
 const SLOPE_PARALLEL_TOL_DEG = 15;
@@ -644,17 +653,39 @@ function reconstructCeilingForRoom(walls, floorArea){
     return Math.min(d, 180-d) > SLOPE_PARALLEL_TOL_DEG;
   }));
 
-  // Length the slope runs for, measured from the knee walls. Knee walls on
-  // opposite sides of one room span the same length, so their total divided
-  // by the number of slopes recovers that length (and stays right when the
-  // two sides differ, as long as their pitches are alike).
+  // Length the slope runs for, measured from the knee walls.
+  //
+  // Knee walls run parallel to the ridge, and each SIDE of the roof spans the
+  // room's full length — so one side's length is already the whole answer.
+  // They are therefore grouped by side (project each onto the section axis;
+  // walls at the same offset are the same side, which also re-joins a side a
+  // doorway broke into pieces) and the longest side wins.
+  //
+  // Dividing the total by the number of slopes, as this did before, only holds
+  // when every slope has its own knee wall. It halved the length whenever one
+  // side was a full-height wall instead, or its knee sat at a different height
+  // and went unmatched: a peak with one knee wall came out 10% short, a flat
+  // top with two slopes 14.3% short. Taking the longest side is right in both
+  // of those and unchanged in the symmetric case.
   const kneeWalls = flatWalls.filter(w =>
     Math.abs(w.dimensions[1] - section.kneeWallHeight) <= KNEE_MATCH_TOL_M &&
     w.dimensions[1] < section.ridgeHeight - KNEE_MATCH_TOL_M);
-  const slopeCount = section.segments.filter(s => s.isSlope).length;
-  const slopeExtent = (kneeWalls.length && slopeCount > 0)
-    ? kneeWalls.reduce((a, w) => a + w.dimensions[0], 0) / slopeCount
-    : null;
+  const slopeCount = section.segments.filter(s => s.isSlope).length;  // diagnostic only
+
+  const sectionSeg = wallSegment(profileWalls.find(w => w.identifier === section.wallId));
+  const sdx = sectionSeg.p2[0]-sectionSeg.p1[0], sdz = sectionSeg.p2[1]-sectionSeg.p1[1];
+  const sLen = Math.hypot(sdx, sdz) || 1;
+  const ax = sdx/sLen, az = sdz/sLen;
+  const kneeSides = [];
+  for (const w of kneeWalls) {
+    const c = wallSegment(w);
+    const offset = ((c.p1[0]+c.p2[0])/2)*ax + ((c.p1[1]+c.p2[1])/2)*az;
+    let side = kneeSides.find(s => Math.abs(s.offset - offset) < KNEE_SIDE_TOL_M);
+    if (!side) { side = { offset, length: 0, wallIds: [] }; kneeSides.push(side); }
+    side.length += w.dimensions[0];
+    side.wallIds.push(w.identifier);
+  }
+  const slopeExtent = kneeSides.length ? Math.max(...kneeSides.map(s => s.length)) : null;
 
   let ceilingArea = null, method = null, roomLength = null;
   if (floorArea > 0 && slopeExtent != null) {
@@ -683,7 +714,7 @@ function reconstructCeilingForRoom(walls, floorArea){
 
   return {
     flat: false, profiles, section, sectionRatio, floorArea: floorArea || null,
-    slopeSurplus: section.surplus, slopeExtent, slopeCount,
+    slopeSurplus: section.surplus, slopeExtent, slopeCount, kneeSides,
     kneeWallIds: kneeWalls.map(w => w.identifier),
     ceilingArea, method, notParallel, roomLength
   };
@@ -826,7 +857,7 @@ function fmtArea(n){ if (n === null || n === undefined || isNaN(n)) return '—'
 // Bump together with the ?v= query strings in index.html when shipping —
 // mobile Safari otherwise keeps serving stale JS after a deploy, which has
 // repeatedly led to fixes being tested against old code.
-const APP_VERSION = '2026-08-07g';
+const APP_VERSION = '2026-08-07h';
 
 const APPLE_EPOCH_MS = 978307200000; // 2001-01-01 UTC — Apple/Core Data reference date
 
