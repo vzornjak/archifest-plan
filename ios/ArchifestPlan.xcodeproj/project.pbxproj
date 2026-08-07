@@ -1,0 +1,430 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		08374CCD738F7937C527FA78 /* ArchifestPlanApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D4B9498E827B82929A67F6E /* ArchifestPlanApp.swift */; };
+		23B543DBADE4A562797C9460 /* ScanExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 024C9A24D440180901965D5D /* ScanExport.swift */; };
+		3114B39E34A8867A1D67CF7D /* CaptureCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4471CBF485BBC71400BA7FC /* CaptureCoordinator.swift */; };
+		5D21C6A79CE1E4B0918088DC /* CaptureScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ECC28E7582743C40860A980 /* CaptureScreen.swift */; };
+		67A03A8BED34FDD5154884BE /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD09D4FD727FCD9D388F28BA /* HomeView.swift */; };
+		6ABF2BFFE67EBD9DA1186BA2 /* sample-scan-meta.json in Resources */ = {isa = PBXBuildFile; fileRef = 2B629790D9F4578974257536 /* sample-scan-meta.json */; };
+		7E9B3AF5798A1A548C7BBDFF /* sample-scan.json in Resources */ = {isa = PBXBuildFile; fileRef = A4585C071A148969CA130DCF /* sample-scan.json */; };
+		828B2C480F3231A1D5DB5072 /* RoomCaptureRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59820D412309E0E8AB49394C /* RoomCaptureRepresentable.swift */; };
+		9B4A99598096951D26A6DE13 /* HeadingReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 279045E9861EBAE68F41E1F1 /* HeadingReader.swift */; };
+		9C3117EAF425F44E2D252201 /* ScanMeta.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE01015ECFC9ED87C747C3F9 /* ScanMeta.swift */; };
+		AFEC6BF0CEA4B86863E3A4E8 /* ReportWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 539F84A6D01C8A0806A5D2C3 /* ReportWebView.swift */; };
+		E77C56C7474103056D1D157E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8C85A35BDBF20CC3096169D2 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		024C9A24D440180901965D5D /* ScanExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanExport.swift; sourceTree = "<group>"; };
+		0D4B9498E827B82929A67F6E /* ArchifestPlanApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchifestPlanApp.swift; sourceTree = "<group>"; };
+		279045E9861EBAE68F41E1F1 /* HeadingReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadingReader.swift; sourceTree = "<group>"; };
+		2B629790D9F4578974257536 /* sample-scan-meta.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "sample-scan-meta.json"; sourceTree = "<group>"; };
+		539F84A6D01C8A0806A5D2C3 /* ReportWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportWebView.swift; sourceTree = "<group>"; };
+		59820D412309E0E8AB49394C /* RoomCaptureRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomCaptureRepresentable.swift; sourceTree = "<group>"; };
+		7E2180B90A739EF7321EB415 /* ArchifestPlan.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ArchifestPlan.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8C85A35BDBF20CC3096169D2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		8ECC28E7582743C40860A980 /* CaptureScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureScreen.swift; sourceTree = "<group>"; };
+		A4585C071A148969CA130DCF /* sample-scan.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "sample-scan.json"; sourceTree = "<group>"; };
+		AD09D4FD727FCD9D388F28BA /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		BE01015ECFC9ED87C747C3F9 /* ScanMeta.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanMeta.swift; sourceTree = "<group>"; };
+		D4471CBF485BBC71400BA7FC /* CaptureCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCoordinator.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		08FCCC827EB06464C085C754 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				BE01015ECFC9ED87C747C3F9 /* ScanMeta.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		0D652E2A51FE4980ABA0195D /* Report */ = {
+			isa = PBXGroup;
+			children = (
+				539F84A6D01C8A0806A5D2C3 /* ReportWebView.swift */,
+				024C9A24D440180901965D5D /* ScanExport.swift */,
+			);
+			path = Report;
+			sourceTree = "<group>";
+		};
+		210CA97EA99B8F8A271AA25D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				7E2180B90A739EF7321EB415 /* ArchifestPlan.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		2B8825AE7FFE680DDC091279 /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				2B629790D9F4578974257536 /* sample-scan-meta.json */,
+				A4585C071A148969CA130DCF /* sample-scan.json */,
+			);
+			path = Fixtures;
+			sourceTree = "<group>";
+		};
+		3BF5A90DD61E02E6B40D66AE /* App */ = {
+			isa = PBXGroup;
+			children = (
+				0D4B9498E827B82929A67F6E /* ArchifestPlanApp.swift */,
+				AD09D4FD727FCD9D388F28BA /* HomeView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		4F2D7291273CF2D43FD5618E /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				8C85A35BDBF20CC3096169D2 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		565AE3CB50B2736D56A7F072 /* Capture */ = {
+			isa = PBXGroup;
+			children = (
+				D4471CBF485BBC71400BA7FC /* CaptureCoordinator.swift */,
+				8ECC28E7582743C40860A980 /* CaptureScreen.swift */,
+				279045E9861EBAE68F41E1F1 /* HeadingReader.swift */,
+				59820D412309E0E8AB49394C /* RoomCaptureRepresentable.swift */,
+			);
+			path = Capture;
+			sourceTree = "<group>";
+		};
+		871A0878427A6799547E1B37 = {
+			isa = PBXGroup;
+			children = (
+				8C5CDC32FC0976C1B90D0C25 /* ArchifestPlan */,
+				210CA97EA99B8F8A271AA25D /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		8C5CDC32FC0976C1B90D0C25 /* ArchifestPlan */ = {
+			isa = PBXGroup;
+			children = (
+				3BF5A90DD61E02E6B40D66AE /* App */,
+				565AE3CB50B2736D56A7F072 /* Capture */,
+				2B8825AE7FFE680DDC091279 /* Fixtures */,
+				08FCCC827EB06464C085C754 /* Models */,
+				0D652E2A51FE4980ABA0195D /* Report */,
+				4F2D7291273CF2D43FD5618E /* Resources */,
+			);
+			path = ArchifestPlan;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		79B4339424BDEB9A4DF0ABC6 /* ArchifestPlan */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7799939CE1E9701736CD217B /* Build configuration list for PBXNativeTarget "ArchifestPlan" */;
+			buildPhases = (
+				0310C36C05357BACBBCBA658 /* Copy web report files */,
+				BA1D397916CF2E859094C49B /* Sources */,
+				BB732F074CE05E3F559F0CCB /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ArchifestPlan;
+			packageProductDependencies = (
+			);
+			productName = ArchifestPlan;
+			productReference = 7E2180B90A739EF7321EB415 /* ArchifestPlan.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		DA6A50CBF3824BFB9EDD09B4 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					79B4339424BDEB9A4DF0ABC6 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = B5A8A4C2A44E78224EBD5C06 /* Build configuration list for PBXProject "ArchifestPlan" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 871A0878427A6799547E1B37;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 210CA97EA99B8F8A271AA25D /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				79B4339424BDEB9A4DF0ABC6 /* ArchifestPlan */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		BB732F074CE05E3F559F0CCB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E77C56C7474103056D1D157E /* Assets.xcassets in Resources */,
+				6ABF2BFFE67EBD9DA1186BA2 /* sample-scan-meta.json in Resources */,
+				7E9B3AF5798A1A548C7BBDFF /* sample-scan.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		0310C36C05357BACBBCBA658 /* Copy web report files */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../index.html",
+				"$(SRCROOT)/../app.js",
+				"$(SRCROOT)/../geometry.js",
+				"$(SRCROOT)/../style.css",
+			);
+			name = "Copy web report files";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/index.html",
+				"$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/app.js",
+				"$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/geometry.js",
+				"$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/style.css",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nSRC=\"$SRCROOT/..\"\nDEST=\"$BUILT_PRODUCTS_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\nmkdir -p \"$DEST\"\nfor f in index.html app.js geometry.js style.css; do\n  if [ ! -f \"$SRC/$f\" ]; then\n    echo \"error: missing $SRC/$f — the web report cannot be bundled\" >&2\n    exit 1\n  fi\n  cp \"$SRC/$f\" \"$DEST/$f\"\ndone\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		BA1D397916CF2E859094C49B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				08374CCD738F7937C527FA78 /* ArchifestPlanApp.swift in Sources */,
+				3114B39E34A8867A1D67CF7D /* CaptureCoordinator.swift in Sources */,
+				5D21C6A79CE1E4B0918088DC /* CaptureScreen.swift in Sources */,
+				9B4A99598096951D26A6DE13 /* HeadingReader.swift in Sources */,
+				67A03A8BED34FDD5154884BE /* HomeView.swift in Sources */,
+				AFEC6BF0CEA4B86863E3A4E8 /* ReportWebView.swift in Sources */,
+				828B2C480F3231A1D5DB5072 /* RoomCaptureRepresentable.swift in Sources */,
+				23B543DBADE4A562797C9460 /* ScanExport.swift in Sources */,
+				9C3117EAF425F44E2D252201 /* ScanMeta.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		061C868CF1A008EB342417D2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		3BD6AE65CA59436DC41141F7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ArchifestPlan/Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = hr.archifest.plan;
+				PRODUCT_NAME = ArchifestPlan;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		3DF832AC29DAB06B1538DB51 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ArchifestPlan/Resources/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = hr.archifest.plan;
+				PRODUCT_NAME = ArchifestPlan;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		7102BAFCD391AB1778D4A384 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		7799939CE1E9701736CD217B /* Build configuration list for PBXNativeTarget "ArchifestPlan" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3BD6AE65CA59436DC41141F7 /* Debug */,
+				3DF832AC29DAB06B1538DB51 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B5A8A4C2A44E78224EBD5C06 /* Build configuration list for PBXProject "ArchifestPlan" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7102BAFCD391AB1778D4A384 /* Debug */,
+				061C868CF1A008EB342417D2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = DA6A50CBF3824BFB9EDD09B4 /* Project object */;
+}

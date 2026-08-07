@@ -104,33 +104,76 @@ written and **dropped**: it runs 8–11% low on every scan because the grid
 staircases around angled walls, and a control that always cries wolf devalues
 the ones that work.
 
-## iOS app (planned, not started)
+## iOS app
 
-Decisions already taken:
+Built (in `ios/`), compiles, and runs in Simulator against the bundled sample
+— see `ios/README.md` for how to build it. What's actually verified vs. still
+open:
 
 - **Same repo, `ios/` subfolder.** `geometry.js` is the app's engine; two repos
   means two versions of the truth.
-- The web files are **not copied** into `ios/`. An Xcode Run Script build phase
-  copies them from the repo root into the bundle, so the app can never ship
-  stale maths.
-- `CapturedRoom` (iOS 16+) and `CapturedStructure` (iOS 17+) are both `Codable`
-  — verified against Apple's docs, not memory. `JSONEncoder` output is exactly
-  the format this tool already reads.
-- **Entry points already exist**: `applyScan(name, json)` and
-  `applyMeta(json, scanFollows)` are globals in `app.js`. Native side calls them
-  via `evaluateJavaScript`. `app.js:90` already unwraps a bare `CapturedRoom`,
-  and the `rooms[]` loop already handles a merged `CapturedStructure` — though
-  whether a *merged* structure yields correct numbers needs a real merged scan
-  to confirm, not an assumption.
+- The web files are **not copied by hand** into `ios/`. `project.yml`'s
+  `preBuildScripts` entry ("Copy web report files") copies them from the repo
+  root into the bundle on every build and **fails the build** if one's
+  missing, so the app can never ship stale maths.
+- **Xcode project is generated, not hand-written.** `ios/project.yml` +
+  `xcodegen generate` produces `ArchifestPlan.xcodeproj` — a hand-authored
+  `.pbxproj` was considered and rejected as too easy to silently corrupt.
+  Regenerate after adding/removing source files (`cd ios && xcodegen generate`).
+  One real trap already hit: xcodegen has **no top-level `resources:` target
+  key** — resource files (Assets.xcassets, the Fixtures JSON) must live under
+  `sources:` tagged `buildPhase: resources`, or xcodegen silently drops them
+  and the app crashes on launch reaching for a bundle resource that was never
+  copied in.
+- `CapturedRoom` (iOS 16+) and `CapturedStructure`/`StructureBuilder` (iOS 17+,
+  the merge class is called `StructureBuilder`, not `CapturedStructureBuilder`)
+  — verified against Apple's current docs at implementation time, not memory.
+  `CapturedStructure` has its own top-level `rooms: [CapturedRoom]`, so
+  encoding it directly is already the shape `geometry.js` reads.
+- **Deployment target is iOS 17.0**, chosen for `StructureBuilder`. No real
+  cost: every LiDAR-capable device (iPhone 12 Pro+, iPad Pro 2020+) already
+  supports iOS 17+.
+- `RoomCaptureViewDelegate` unexpectedly inherits from **`NSCoding`**
+  (confirmed against Apple's docs, still surprising for a delegate protocol)
+  — a conforming type needs `init?(coder:)`/`encode(with:)` stubs, and under
+  Swift 6 strict concurrency those must be `nonisolated` on an `@MainActor`
+  type. The isolated-conformance shorthand (`extension X: @MainActor SomeProto`)
+  worked for `CLLocationManagerDelegate` but not `RoomCaptureViewDelegate` in
+  this Xcode (26.6) — fell back to `nonisolated` delegate methods hopping to
+  the main actor via `Task { @MainActor in … }` for that one.
+- **Entry points**: `applyScan(name, json)` and `applyMeta(json, scanFollows)`
+  in `app.js` are called via `WKWebView.callAsyncJavaScript(_:arguments:...)`
+  (typed arguments, not string-concatenated JSON) from `ios/.../ReportWebView.swift`,
+  replicating `handleFiles`'s classification order exactly. Confirmed working
+  end-to-end in Simulator against the bundled fixture (2-room scan, sloped
+  wall, shared identifiers) — report rendered with the right wall/opening/
+  furniture counts and "Pravi sjever iz meta.json".
+- `window.print()` is overridden by an injected `WKUserScript` (not by editing
+  app.js) to call native `webView.pdf(configuration:)` + a share sheet — the
+  override itself is verified injected; the actual print/share tap has **not**
+  been exercised (no UI-automation tap available in this environment).
 - Use Apple's RoomPlan sample as a **reference**, don't paste it in. The repo is
   MIT; Apple's sample carries its own licence and copying it makes that claim
   untrue.
-- **RoomPlan does not run in the Simulator** (`isSupported` is false — no LiDAR).
-  Test everything else in the Simulator against a bundled synthetic fixture in
-  `ios/**/Fixtures/`; live capture has to be checked on a device.
+- **RoomPlan does not run in the Simulator** (`RoomCaptureSession.isSupported`
+  is false there — confirmed, `HomeView` correctly shows the "not supported"
+  message instead of a broken capture button). Everything else is tested in
+  the Simulator against the bundled synthetic fixture in `ios/**/Fixtures/`.
 - Simulator needs no code signing. An Apple ID is only needed for device
   deployment, a paid account only for the App Store.
-- `window.print()` needs replacing with native print/PDF inside a WKWebView.
+
+### Still needs a real LiDAR device (not verifiable from this environment)
+
+- **The multi-room `StructureBuilder` merge** — built, compiles, but never run
+  against an actual multi-room walkthrough.
+- **`HEADING_OFFSET_DEG = 90` in `geometry.js`** was calibrated against a
+  different app's heading convention and a landscape-at-scan-start assumption
+  RoomPlan doesn't share. `HeadingReader` hands back a plain compass reading;
+  whether the existing offset still lines up needs an on-device check
+  (rotate in a room until the plan matches, same method the original README
+  calibration used).
+- Live capture UX (coaching overlay, session recovery, real-world accuracy).
+- The print button's actual PDF export/share sheet.
 
 ## Known, deliberately not fixed
 

@@ -1,0 +1,57 @@
+{
+  "rooms": [
+    {
+      "referenceOriginTransform": [0,0,1,0, 0,1,0,0, -1,0,0,0, 0,0,0,1],
+      "walls": [
+        { "identifier": "W-A", "category": { "wall": {} }, "confidence": { "high": {} },
+          "dimensions": [6, 2.5, 0], "transform": [1,0,0,0, 0,1,0,0, 0,0,1,0, 3,1.25,0,1] },
+        { "identifier": "W-B", "category": { "wall": {} }, "confidence": { "high": {} },
+          "dimensions": [6, 2.5, 0], "transform": [1,0,0,0, 0,1,0,0, 0,0,1,0, 3,1.25,4,1] },
+        { "identifier": "W-C", "category": { "wall": {} }, "confidence": { "high": {} },
+          "dimensions": [4, 2.5, 0], "transform": [0,0,1,0, 0,1,0,0, -1,0,0,0, 0,1.25,2,1],
+          "polygonCorners": [[-2,-1.25,0],[2,-1.25,0],[2,0.25,0],[0,1.25,0],[-2,0.25,0]] },
+        { "identifier": "W-D", "category": { "wall": {} }, "confidence": { "high": {} },
+          "dimensions": [4, 2.5, 0], "transform": [0,0,1,0, 0,1,0,0, -1,0,0,0, 6,1.25,2,1],
+          "polygonCorners": [[-2,-1.25,0],[2,-1.25,0],[2,0.25,0],[0,1.25,0],[-2,0.25,0]] }
+      ],
+      "doors": [
+        { "identifier": "D-1", "category": { "door": { "isOpen": false } }, "confidence": { "medium": {} },
+          "dimensions": [1, 2, 0], "transform": [1,0,0,0, 0,1,0,0, 0,0,1,0, 1.5,1,0,1], "parentIdentifier": "W-A" }
+      ],
+      "floors": [
+        { "identifier": "F-1", "category": { "floor": {} }, "confidence": { "high": {} },
+          "dimensions": [6, 4, 0], "transform": [1,0,0,0, 0,0,1,0, 0,-1,0,0, 3,0,2,1],
+          "polygonCorners": [[-3,-2,0],[3,-2,0],[3,2,0],[-3,2,0]] }
+      ],
+      "objects": [
+        { "identifier": "OBJ-1", "category": { "sofa": {} }, "confidence": { "medium": {} },
+          "dimensions": [2, 0.8, 0.9], "transform": [1,0,0,0, 0,1,0,0, 0,0,1,0, 3,0.4,3.5,1] }
+      ]
+    },
+    {
+      "walls": [
+        { "identifier": "W-E", "category": { "wall": {} }, "confidence": { "high": {} },
+          "dimensions": [6, 2.5, 0], "transform": [1,0,0,0, 0,1,0,0, 0,0,1,0, 13,1.25,0,1] },
+        { "identifier": "W-F", "category": { "wall": {} }, "confidence": { "high": {} },
+          "dimensions": [6, 2.5, 0], "transform": [1,0,0,0, 0,1,0,0, 0,0,1,0, 13,1.25,3,1] },
+        { "identifier": "W-G", "category": { "wall": {} }, "confidence": { "high": {} },
+          "dimensions": [3, 2.5, 0], "transform": [0,0,1,0, 0,1,0,0, -1,0,0,0, 10,1.25,1.5,1] },
+        { "identifier": "W-H", "category": { "wall": {} }, "confidence": { "high": {} },
+          "dimensions": [3, 2.5, 0], "transform": [0,0,1,0, 0,1,0,0, -1,0,0,0, 16,1.25,1.5,1] }
+      ],
+      "windows": [
+        { "identifier": "WIN-1", "category": { "window": {} }, "confidence": { "medium": {} },
+          "dimensions": [1.2, 1.2, 0], "transform": [1,0,0,0, 0,1,0,0, 0,0,1,0, 13.5,1.4,3,1], "parentIdentifier": "W-F" }
+      ],
+      "floors": [
+        { "identifier": "F-2", "category": { "floor": {} }, "confidence": { "high": {} },
+          "dimensions": [6, 3, 0], "transform": [1,0,0,0, 0,0,1,0, 0,-1,0,0, 13,0,1.5,1],
+          "polygonCorners": [[-3,-1.5,0],[3,-1.5,0],[3,1.5,0],[-3,1.5,0]] }
+      ],
+      "objects": [
+        { "identifier": "OBJ-2", "category": { "refrigerator": {} }, "confidence": { "medium": {} },
+          "dimensions": [0.7, 1.8, 0.7], "transform": [1,0,0,0, 0,1,0,0, 0,0,1,0, 15.5,0.9,0.5,1] }
+      ]
+    }
+  ]
+}
