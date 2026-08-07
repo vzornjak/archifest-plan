@@ -28,7 +28,7 @@
 		2B629790D9F4578974257536 /* sample-scan-meta.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "sample-scan-meta.json"; sourceTree = "<group>"; };
 		539F84A6D01C8A0806A5D2C3 /* ReportWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportWebView.swift; sourceTree = "<group>"; };
 		59820D412309E0E8AB49394C /* RoomCaptureRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomCaptureRepresentable.swift; sourceTree = "<group>"; };
-		7E2180B90A739EF7321EB415 /* ArchifestPlan.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ArchifestPlan.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7E2180B90A739EF7321EB415 /* ArchifestPlan.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ArchifestPlan.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8C85A35BDBF20CC3096169D2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8ECC28E7582743C40860A980 /* CaptureScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureScreen.swift; sourceTree = "<group>"; };
 		A4585C071A148969CA130DCF /* sample-scan.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "sample-scan.json"; sourceTree = "<group>"; };
@@ -301,6 +301,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = KT5643BW7L;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ArchifestPlan/Resources/Info.plist;
@@ -324,6 +325,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = KT5643BW7L;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ArchifestPlan/Resources/Info.plist;
