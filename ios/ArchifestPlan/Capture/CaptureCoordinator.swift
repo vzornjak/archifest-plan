@@ -51,8 +51,12 @@ final class CaptureCoordinator: NSObject, ObservableObject {
   // RoomPlan docs — an unexpected inheritance for a delegate protocol, but
   // real). We don't support state restoration, so these are stubs; RoomPlan
   // never calls them for a delegate assigned programmatically like this one.
+  // Returns nil rather than calling fatalError: this initializer is failable
+  // precisely so a type can decline to be decoded, and "decline" is the
+  // honest answer here — we don't support state restoration. A fatalError
+  // would crash the app outright if anything ever did attempt it.
   required nonisolated init?(coder: NSCoder) {
-    fatalError("CaptureCoordinator does not support NSCoding-based restoration")
+    return nil
   }
 
   nonisolated func encode(with coder: NSCoder) {}
