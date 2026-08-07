@@ -350,7 +350,17 @@ function renderZonesSegmented(el, data, seg){
         // or one whose both faces are inside this room, is worth showing
         const partial = Math.abs(w.share - 1) > 0.02
           ? ' <span class="badge b-part">' + Math.round(w.share*100) + '%</span>' : '';
-        return '<tr><td>' + esc(String(wg.identifier).slice(0,8)) + badge + partial + '</td><td>' + wg.dimensions[0].toFixed(2) + ' × ' + wg.dimensions[1].toFixed(2) + '</td><td>' + fmt(w.grossArea) + '</td><td>' + fmt(w.netArea) + '</td><td style="color:var(--amber);">' + fmt(w.paintArea) + '</td></tr>';
+        const slope = wg.hasSlope ? ' <span class="badge b-slope">kosina</span>' : '';
+        // The room's OWN bordering length and the average height over that
+        // stretch, so the row always multiplies out into the area beside it.
+        // Showing the full wall length next to a partial area read as an error.
+        const L = w.coveredLength;
+        const avgH = L > 0 ? w.grossArea / L : wg.dimensions[1];
+        let row = '<tr><td>' + esc(String(wg.identifier).slice(0,8)) + badge + partial + slope + '</td><td>' + L.toFixed(2) + ' × ' + avgH.toFixed(2) + '</td><td>' + fmt(w.grossArea) + '</td><td>' + fmt(w.netArea) + '</td><td style="color:var(--amber);">' + fmt(w.paintArea) + '</td></tr>';
+        // spell out the roof cut when this room borders the whole sloped wall —
+        // on a partial stretch the triangle would only be partly inside it
+        if (wg.hasSlope && Math.abs(w.share - 1) <= 0.02) row += slopeEquationRow(wg, 5);
+        return row;
       }).join('');
       html += '</tbody></table>';
     }
@@ -401,6 +411,20 @@ function confBadge(level){
   return '<span class="badge b-conf-' + level + '">' + level + '</span>';
 }
 
+// A sloped wall's gross area is not Dim1 x Dim2, and without the working shown
+// that reads as a wrong number rather than a roof cut. Prints the real
+// arithmetic:  m² = W·H − Σ(ΔW·ΔH)/2  — one term per sloping segment, so a
+// two-sided gable shows two.
+function slopeEquationRow(w, colspan){
+  const { triangles, cutArea } = slopeCutTriangles(w);
+  if (!triangles.length) return '';
+  const W = w.dimensions[0], H = w.dimensions[1];
+  const terms = triangles.map(t => '(' + t.dW.toFixed(2) + ' × ' + t.dH.toFixed(2) + ')/2').join(' − ');
+  return '<tr><td colspan="' + colspan + '" class="eq-cell"><span class="eq">' +
+    W.toFixed(2) + ' × ' + H.toFixed(2) + ' − ' + terms + ' = ' + (W*H - cutArea).toFixed(2) + ' m²' +
+    '</span></td></tr>';
+}
+
 function renderWallsTable(data){
   const tbody = document.querySelector('#wallsTable tbody');
   if (!data.walls.length) { tbody.innerHTML = '<tr><td colspan="6" style="color:var(--ink-faint);">Nema podataka</td></tr>'; return; }
@@ -408,7 +432,8 @@ function renderWallsTable(data){
     const net = wallNetArea(data, w);
     const paint = wallPaintArea(data, w);
     const slopeBadge = w.hasSlope ? ' <span class="badge b-slope">kosina</span>' : '';
-    return '<tr><td>' + esc(String(w.identifier).slice(0,8)) + slopeBadge + '</td><td>' + w.dimensions[0].toFixed(2) + ' × ' + w.dimensions[1].toFixed(2) + '</td><td>' + fmt(w.area) + '</td><td>' + fmt(net) + '</td><td style="color:var(--amber);">' + fmt(paint) + '</td><td>' + confBadge(w.confLevel) + '</td></tr>';
+    const row = '<tr><td>' + esc(String(w.identifier).slice(0,8)) + slopeBadge + '</td><td>' + w.dimensions[0].toFixed(2) + ' × ' + w.dimensions[1].toFixed(2) + '</td><td>' + fmt(w.area) + '</td><td>' + fmt(net) + '</td><td style="color:var(--amber);">' + fmt(paint) + '</td><td>' + confBadge(w.confLevel) + '</td></tr>';
+    return row + (w.hasSlope ? slopeEquationRow(w, 6) : '');
   }).join('');
 }
 
@@ -571,7 +596,10 @@ function renderPlan(data, showFurniture){
         const tb = Math.min(1, Math.max(0, (pts[i+1][0] + L/2) / L));
         const [ax, ay] = toSvg(s.p1[0] + (s.p2[0]-s.p1[0])*ta, s.p1[1] + (s.p2[1]-s.p1[1])*ta);
         const [bx, by] = toSvg(s.p1[0] + (s.p2[0]-s.p1[0])*tb, s.p1[1] + (s.p2[1]-s.p1[1])*tb);
-        parts.push('<line x1="' + ax + '" y1="' + ay + '" x2="' + bx + '" y2="' + by + '" class="sv-wall-slope" stroke-width="' + wallStroke + '" stroke-linecap="butt"/>');
+        // drawn thicker than the wall so it reads as a marked stretch instead
+        // of blending into the line — at phone scale the same-width grey
+        // overlay was easy to miss entirely
+        parts.push('<line x1="' + ax + '" y1="' + ay + '" x2="' + bx + '" y2="' + by + '" class="sv-wall-slope" stroke-width="' + (wallStroke*1.7) + '" stroke-linecap="butt"/>');
       }
     }
   }

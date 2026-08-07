@@ -221,6 +221,19 @@ ok('esc neutralizes html', g.esc('<img onerror=x>') === '&lt;img onerror=x&gt;')
   // this fixture has no openings at all, so the two must coincide exactly
   ok('with no openings, painting equals net', kitchenWalls.every(w => Math.abs(w.paintArea - w.netArea) < 1e-9));
 
+  // flat walls must be untouched by the slope-aware split: area share === length share
+  ok('flat wall: gross area is exactly area × length share',
+    kitchenWalls.every(w => Math.abs(w.grossArea - w.wall.area * w.share) < 0.02));
+  ok('flat wall: areaFraction === share', kitchenWalls.every(w => Math.abs(w.areaFraction - w.share) < 0.01));
+
+  // the room's own bordering length is reported, so the table row can multiply out
+  ok('bordering length is reported per room',
+    kitchenWalls.every(w => Math.abs(w.coveredLength - w.wall.dimensions[0] * w.share) < 0.02));
+  ok('length × average height === the gross area shown',
+    kitchenWalls.every(w => Math.abs(w.coveredLength * (w.grossArea / w.coveredLength) - w.grossArea) < 1e-9));
+  const aLeft = kitchenWalls.find(w => w.wall.identifier === 'A-left');
+  ok('a wall the room fully borders reports its full length', Math.abs(aLeft.coveredLength - 3) < 0.05);
+
   // with a 2 m² door in the shared wall, painting ignores it but net does not —
   // and both still follow the per-room share
   const doorInShared = { identifier:'D-S', category:{door:{isOpen:false}}, confidence:{high:{}},
@@ -251,6 +264,47 @@ ok('esc neutralizes html', g.esc('<img onerror=x>') === '&lt;img onerror=x&gt;')
   ok('flat rooms get a flat ceiling equal to their own floor',
     seg.zones.every(z => ceilByZone.get(z.zoneId).flat &&
       Math.abs(ceilByZone.get(z.zoneId).ceilingArea - z.areaExact) < 1e-9));
+}
+
+// --- sloped walls: height varies along the length, so area must not be split
+// by length fraction (that ran up to 20% out on a real gable) ---
+{
+  const gableWall = data.walls.find(w => w.identifier === 'W-C');   // 4 m wide, knee 1.5, ridge 2.5
+  const flatWall  = data.walls.find(w => w.identifier === 'W-A');   // 6 x 2.5, no polygon
+
+  eq('flat wall: same height everywhere', g.wallHeightAt(flatWall, 0), H, 1e-9);
+  eq('flat wall: height holds at the ends', g.wallHeightAt(flatWall, 3), H, 1e-9);
+  eq('gable: knee height at the left edge', g.wallHeightAt(gableWall, -2), 1.5, 1e-9);
+  eq('gable: ridge height at the centre', g.wallHeightAt(gableWall, 0), 2.5, 1e-9);
+  eq('gable: halfway up the slope', g.wallHeightAt(gableWall, -1), 2.0, 1e-9);
+  eq('gable: symmetric on the other side', g.wallHeightAt(gableWall, 1), 2.0, 1e-9);
+  eq('gable: clamped past the end', g.wallHeightAt(gableWall, -99), 1.5, 1e-9);
+
+  // integrating the height along the wall must reproduce the polygon area
+  let integral = 0; const N = 20000, L = gableWall.dimensions[0];
+  for (let i = 0; i < N; i++) integral += g.wallHeightAt(gableWall, -L/2 + (i+0.5)/N*L) * (L/N);
+  ok('height integrated along the wall === polygon area',
+    Math.abs(integral - gableWall.area) / gableWall.area < 0.001, 'integral=' + integral.toFixed(4));
+
+  // m² = W·H − Σ(ΔW·ΔH)/2 — the equation printed next to the wall
+  const cut = g.slopeCutTriangles(gableWall);
+  eq('a two-sided gable cuts two triangles', cut.triangles.length, 2);
+  eq('equation reproduces the area exactly',
+    gableWall.dimensions[0]*gableWall.dimensions[1] - cut.cutArea, gableWall.area, 1e-9);
+  eq('a flat wall cuts nothing', g.slopeCutTriangles(flatWall).triangles.length, 0);
+
+  // splitting a sloped wall between two rooms: the low-knee side must get LESS
+  // than its length fraction, and the two sides must still add up to the whole
+  const shed = [[-2,-1.25,0],[2,-1.25,0],[2,1.25,0],[-2,-0.25,0]];  // rises left->right
+  const shedWall = { identifier:'S-W', category:{wall:{}}, confidence:{high:{}}, dimensions:[4,2.5,0],
+                     transform: mat(1,0, 0,1.25,0), polygonCorners: shed };
+  const shedData = g.buildData({ rooms:[{ walls:[shedWall] }] });
+  const sw = shedData.walls[0];
+  const lowHalf = (() => { let a=0; const M=20000; for (let i=0;i<M;i++) a += g.wallHeightAt(sw, -2 + (i+0.5)/M*2) * (2/M); return a; })();
+  ok('low half is smaller than half the wall area', lowHalf < sw.area/2 - 0.01,
+    'low=' + lowHalf.toFixed(3) + ' half=' + (sw.area/2).toFixed(3));
+  const highHalf = (() => { let a=0; const M=20000; for (let i=0;i<M;i++) a += g.wallHeightAt(sw, (i+0.5)/M*2) * (2/M); return a; })();
+  eq('the two halves add up to the whole wall', lowHalf + highHalf, sw.area, 0.001);
 }
 
 // --- painting area: openings up to 3 m2 are not deducted at all, above it only

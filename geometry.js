@@ -70,6 +70,45 @@ function topEdgeSloped(el){
   return (Math.max(...hs) - Math.min(...hs)) > 0.05;
 }
 
+// Height of the wall at a local x along its length. Flat walls answer with
+// dimensions[1] everywhere; a sloped one reads its top edge off the polygon.
+// Integrating this along the wall reproduces the polygon area exactly, which
+// is what makes it safe to use for splitting a sloped wall between rooms.
+function wallHeightAt(w, localX){
+  if (!w.polygonCorners || w.polygonCorners.length < 3) return w.dimensions[1];
+  const { minY, pts } = topProfile(w);
+  if (!pts.length) return w.dimensions[1];
+  if (localX <= pts[0][0]) return pts[0][1] - minY;
+  const last = pts[pts.length-1];
+  if (localX >= last[0]) return last[1] - minY;
+  for (let i = 0; i < pts.length-1; i++) {
+    if (localX <= pts[i+1][0]) {
+      const span = pts[i+1][0] - pts[i][0];
+      const t = span > 0 ? (localX - pts[i][0]) / span : 0;
+      return pts[i][1] + t * (pts[i+1][1] - pts[i][1]) - minY;
+    }
+  }
+  return last[1] - minY;
+}
+
+// The roof cuts one triangle out of the wall rectangle per sloping segment, so
+//     m² = W·H − Σ (ΔW·ΔH)/2
+// Returned so the report can print that equation with the wall's real numbers:
+// a gross area that is not W×H reads as a mistake until the cut is spelled out.
+// Verified against the shoelace area to 1e-9 for a single slope and for a
+// two-sided gable (two terms).
+function slopeCutTriangles(w){
+  if (!w.polygonCorners || w.polygonCorners.length < 3) return { triangles: [], cutArea: 0 };
+  const { pts } = topProfile(w);
+  const triangles = [];
+  for (let i = 0; i < pts.length-1; i++) {
+    const dW = Math.abs(pts[i+1][0] - pts[i][0]);
+    const dH = Math.abs(pts[i+1][1] - pts[i][1]);
+    if (dH > 0.02) triangles.push({ dW, dH, area: dW*dH/2 });
+  }
+  return { triangles, cutArea: triangles.reduce((a,t) => a + t.area, 0) };
+}
+
 function profileLength(pts){
   let len = 0;
   for (let i=0;i<pts.length-1;i++){
@@ -443,15 +482,24 @@ function wallsByZone(data, segmentation){
     const segLen = len / steps;
 
     const coveredByZone = new Map();  // zoneId -> border length along this wall
+    const areaByZone = new Map();     // zoneId -> actual face area of that stretch
     const neighbours = new Map();     // zoneId -> Set of zones facing it across the wall
+    // A sloped wall's height varies along its length, so apportioning its area
+    // by length fraction is wrong — on a real gable that ran up to 20% out at a
+    // quarter-point cut. Reading the height at each step and accumulating
+    // height x step is exact on the straight parts of the profile and off only
+    // within the single step that straddles a knee.
+    const halfLen = w.dimensions[0]/2;
     for (let i = 0; i < steps; i++) {
       const t = (i + 0.5) / steps;
       const px = s.p1[0] + dx*t, pz = s.p1[1] + dz*t;
+      const segArea = wallHeightAt(w, -halfLen + t*w.dimensions[0]) * segLen;
       const zA = zoneIdAt(grid, px + nx*WALL_SAMPLE_OFFSET_M, pz + nz*WALL_SAMPLE_OFFSET_M);
       const zB = zoneIdAt(grid, px - nx*WALL_SAMPLE_OFFSET_M, pz - nz*WALL_SAMPLE_OFFSET_M);
       for (const [zid, other] of [[zA, zB], [zB, zA]]) {
         if (zid == null) continue;
         coveredByZone.set(zid, (coveredByZone.get(zid) || 0) + segLen);
+        areaByZone.set(zid, (areaByZone.get(zid) || 0) + segArea);
         if (other != null && other !== zid) {
           if (!neighbours.has(zid)) neighbours.set(zid, new Set());
           neighbours.get(zid).add(other);
@@ -467,15 +515,21 @@ function wallsByZone(data, segmentation){
       // Both faces get painted, so both are counted; clamping here used to
       // silently drop the second face.
       const share = covered / len;
+      const grossArea = areaByZone.get(zid) || 0;
+      // openings scale with the area actually taken, not the length — same
+      // number as `share` for a flat wall, correct for a sloped one
+      const areaFraction = w.area > 0 ? grossArea / w.area : share;
       if (!map.has(zid)) map.set(zid, []);
       map.get(zid).push({
         wall: w,
-        grossArea: w.area * share,
-        netArea: fullNet * share,
-        paintArea: fullPaint * share,
+        coveredLength: covered,
+        grossArea,
+        netArea: fullNet * areaFraction,
+        paintArea: fullPaint * areaFraction,
         fullNetArea: fullNet,
         fullPaintArea: fullPaint,
         share,
+        areaFraction,
         sharedWith: [...(neighbours.get(zid) || [])]
       });
     }
@@ -772,7 +826,7 @@ function fmtArea(n){ if (n === null || n === undefined || isNaN(n)) return '—'
 // Bump together with the ?v= query strings in index.html when shipping —
 // mobile Safari otherwise keeps serving stale JS after a deploy, which has
 // repeatedly led to fixes being tested against old code.
-const APP_VERSION = '2026-08-07f';
+const APP_VERSION = '2026-08-07g';
 
 const APPLE_EPOCH_MS = 978307200000; // 2001-01-01 UTC — Apple/Core Data reference date
 
@@ -780,7 +834,7 @@ const APPLE_EPOCH_MS = 978307200000; // 2001-01-01 UTC — Apple/Core Data refer
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     esc, unwrap, shoelace2D, reshapeMatrix, localToWorld, computeArea,
-    topProfile, topEdgeSloped, profileLength, wallSegment, furnitureRect,
+    topProfile, topEdgeSloped, wallHeightAt, slopeCutTriangles, profileLength, wallSegment, furnitureRect,
     floorPolygon, CONF_LEVELS, annotate, buildData, catLabel, wallNetArea, wallPaintArea, PAINT_FREE_OPENING_M2,
     reconstructCeilingForRoom, reconstructCeiling, northBearingFrom, planOrientation,
     sum, fmt, fmtArea, APPLE_EPOCH_MS, APP_VERSION, HEADING_OFFSET_DEG,
