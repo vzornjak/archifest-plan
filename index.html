@@ -4,8 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Skica — RoomPlan JSON Report</title>
+<!-- Enforced offline: the browser itself blocks every outbound data channel
+     (fetch / XHR / WebSocket / beacon / form post / plugin / iframe), so no
+     future edit can start phoning home by accident. Deliberately does NOT
+     constrain script-src/style-src/img-src — 'self' does not match file://
+     URLs, and the report must keep working opened straight off the disk. -->
+<meta http-equiv="Content-Security-Policy" content="connect-src 'none'; form-action 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'">
 <!-- ?v= busts the browser cache on every release; bump APP_VERSION in geometry.js to match -->
-<link rel="stylesheet" href="style.css?v=2026-08-07c">
+<link rel="stylesheet" href="style.css?v=2026-08-07d">
 </head>
 <body>
 <div class="sheet">
@@ -92,7 +98,7 @@
   </div>
 </div>
 
-<script src="geometry.js?v=2026-08-07c"></script>
-<script src="app.js?v=2026-08-07c"></script>
+<script src="geometry.js?v=2026-08-07d"></script>
+<script src="app.js?v=2026-08-07d"></script>
 </body>
 </html>
