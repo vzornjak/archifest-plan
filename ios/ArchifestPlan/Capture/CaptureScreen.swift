@@ -43,6 +43,9 @@ struct CaptureScreen: View {
 
   @State private var cameraDenied = false
 
+  /// Standard inline navigation bar height — see the badge overlay below.
+  private static let navigationBarHeight: CGFloat = 44
+
   var body: some View {
     ZStack {
       RoomCaptureRepresentable(view: coordinator.roomCaptureView)
@@ -69,7 +72,11 @@ struct CaptureScreen: View {
     // screen, same Liquid Glass, independent of the title.
     .overlay(alignment: .top) {
       RoomCountBadge(hold: hold, roomNumber: coordinator.capturedRoomCount + 1)
-        .padding(.top, 8)
+        // The overlay is laid out inside the safe area, which starts *below*
+        // the navigation bar — so without this it sits a bar's height too
+        // low. 44pt is the standard inline navigation bar height, which is
+        // what lines it up with the back chevron beside it.
+        .offset(y: -Self.navigationBarHeight)
     }
     .statusBarHidden()
     .removingNavigationTitle()
