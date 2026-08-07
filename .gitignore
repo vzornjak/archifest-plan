@@ -5,7 +5,27 @@
 .vscode/
 *.swp
 
-# Test/sample data — don't accidentally commit real client scan data
-*.json
-!package.json
+# Client scan data must NEVER be committed. RoomPlan exports get dropped in the
+# repo root while testing and arrive with arbitrary prefixes (1d386cce-scan.json),
+# so the root and any scan/meta-shaped name anywhere are both blocked.
+#
+# Deliberately NOT a blanket *.json: Xcode asset catalogs carry a Contents.json
+# at every level and SPM writes Package.resolved. A blanket rule makes `git add`
+# skip them silently and the build then fails for anyone who clones.
+/*.json
+*scan*.json
+*meta*.json
+scans/
 test-data/
+
+# ...but tooling manifests and the synthetic fixtures we ship on purpose stay in
+!/package.json
+!/package-lock.json
+!ios/**/Fixtures/*.json
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+*.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
