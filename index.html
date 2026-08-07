@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Skica — RoomPlan JSON Report</title>
-<link rel="stylesheet" href="style.css">
+<!-- ?v= busts the browser cache on every release; bump APP_VERSION in geometry.js to match -->
+<link rel="stylesheet" href="style.css?v=2026-08-07a">
 </head>
 <body>
 <div class="sheet">
@@ -14,6 +15,7 @@
     <div>
       <h1 id="projTitle">RoomPlan JSON Report</h1>
       <div class="sub" id="projSub">Čeka se .json datoteka (CapturedRoom export)</div>
+      <div class="sub" id="verLine" style="opacity:0.55;"></div>
     </div>
     <div style="display:flex; align-items:center; gap:14px;">
       <div class="meta-strip" id="metaStrip"></div>
@@ -92,7 +94,7 @@
   </div>
 </div>
 
-<script src="geometry.js"></script>
-<script src="app.js"></script>
+<script src="geometry.js?v=2026-08-07a"></script>
+<script src="app.js?v=2026-08-07a"></script>
 </body>
 </html>

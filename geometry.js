@@ -624,6 +624,12 @@ function fmt(n){ if (n === null || n === undefined || isNaN(n)) return '—'; re
 
 function fmtArea(n){ if (n === null || n === undefined || isNaN(n)) return '—'; return n.toFixed(2) + ' m²'; }
 
+// Shown in the report header so it is always obvious which build is running.
+// Bump together with the ?v= query strings in index.html when shipping —
+// mobile Safari otherwise keeps serving stale JS after a deploy, which has
+// repeatedly led to fixes being tested against old code.
+const APP_VERSION = '2026-08-07a';
+
 const APPLE_EPOCH_MS = 978307200000; // 2001-01-01 UTC — Apple/Core Data reference date
 
 // Node test hook — ignored in the browser
@@ -633,7 +639,7 @@ if (typeof module !== 'undefined' && module.exports) {
     topProfile, topEdgeSloped, profileLength, wallSegment, furnitureRect,
     floorPolygon, CONF_LEVELS, annotate, buildData, catLabel, wallNetArea,
     reconstructCeilingForRoom, reconstructCeiling, northBearingFrom, planOrientation, needleAngleFrom,
-    sum, fmt, fmtArea, APPLE_EPOCH_MS, HEADING_OFFSET_DEG,
+    sum, fmt, fmtArea, APPLE_EPOCH_MS, APP_VERSION, HEADING_OFFSET_DEG,
     segmentRooms, zoneIdAt, classifyZone, furnitureByZone, wallsByZone,
     OBJECT_VOTES, ZONE_LABELS_HR,
     CELL_M, WALL_BAND_HALF_M, MIN_ZONE_AREA_M2
