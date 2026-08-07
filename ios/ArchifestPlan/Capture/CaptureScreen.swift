@@ -120,10 +120,10 @@ struct CaptureScreen: View {
       HStack {
         Spacer()
         VStack(spacing: 16) {
-          HoldButton(systemImage: "forward.fill", tint: .orange, duration: 1.5, hold: hold) {
+          HoldButton(systemImage: "forward.fill", tint: .orange, duration: 1.0, hold: hold) {
             coordinator.advanceToNextRoom()
           }
-          HoldButton(systemImage: "stop.fill", tint: .red, duration: 2.0, hold: hold) {
+          HoldButton(systemImage: "stop.fill", tint: .red, duration: 1.5, hold: hold) {
             coordinator.stopSession()
           }
         }
