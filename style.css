@@ -93,6 +93,8 @@
   .profile-mini{ display:inline-block; vertical-align:middle; margin-left:6px; }
 
   .floor-check{ font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; font-size:10px; color:var(--ink-faint); margin-top:9px; line-height:1.5; }
+  .eq-cell{ padding:2px 8px 8px 8px; border-bottom:1px solid var(--bg-panel2); }
+  .eq{ display:inline-block; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; font-size:10px; color:var(--amber); border:1px solid var(--ink-faint); border-radius:var(--radius); padding:2px 7px; white-space:nowrap; }
   .assumption{ font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; font-size:10.5px; color:var(--ink-dim); background:var(--bg-panel2); border-left:2px solid var(--amber); padding:8px 10px; margin-top:10px; line-height:1.6; }
   .assumption .warn{ color:var(--rose); }
 
