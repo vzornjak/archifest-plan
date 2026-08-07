@@ -327,6 +327,29 @@ to render `ArchifestDocumentScene` directly against the exact
 committing) — needed because the real end-to-end path (open an external
 file) hits the same "stops at a human tap" limit noted above.
 
+**That fix immediately regressed new-document capture** — the owner hit it
+on a real device: creating a brand-new document also started showing
+`NoScanDataView` instead of capture. Cause: `DocumentGroup` round-trips a
+freshly-created document through disk — writes `.empty`'s zero-entry zip,
+then reads it straight back via `init(configuration:)`, the same read path
+an opened file takes. That path always tagged anything of our own UTType as
+`source = .ownArchive` regardless of content, so a brand-new document and a
+genuinely broken opened one became indistinguishable — exactly the bug the
+`source` field exists to prevent, just one layer further in than the first
+pass caught. Fixed in `init(configuration:)`: an **empty** archive (zero
+entries — exactly what `.empty` serializes to) now sets `source = .new`
+instead of `.ownArchive`; a non-empty one missing `scan.json` (a real
+partial/broken file) still correctly gets `.ownArchive`. Verified the load-
+bearing fact directly — `ArchifestZip.data(for: [])` round-trips through
+`ArchifestZip.read` as zero entries (22-byte EOCD-only archive, checked with
+the same standalone `swiftc` harness the zip module itself was verified
+with) — but **the specific interaction that triggers this (tapping "+" in
+the document browser) can't be simulated in this environment any more than
+opening a shared file can**; the fix is reasoned through and the underlying
+zip-level signal is concretely checked, but the owner's real-device tap is
+still what actually confirms it end-to-end. Said so plainly rather than
+claim more than was actually verified.
+
 ### Still needs a real LiDAR device (not verifiable from this environment)
 
 - **The multi-room `StructureBuilder` merge** — built, compiles, but never run

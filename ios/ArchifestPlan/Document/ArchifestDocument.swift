@@ -55,7 +55,15 @@ struct ArchifestDocument: FileDocument, Sendable {
       let entries = try ArchifestZip.read(data)
       self.scan = entries["scan.json"]
       self.meta = entries["meta.json"]
-      self.source = .ownArchive
+      // DocumentGroup round-trips a freshly-created document through disk —
+      // it writes `.empty`'s zero-entry zip, then reads it straight back via
+      // this same initializer, so a brand-new document arrives here too, not
+      // just genuinely-opened files. A zero-entry archive is exactly what
+      // `.empty` serializes to (see fileWrapper below), so that's the real
+      // distinguishing signal — not "did this come through the read path."
+      // Without this, every new document looked identical to an opened,
+      // broken .archifp and got the "no scan data" screen instead of capture.
+      self.source = entries.isEmpty ? .new : .ownArchive
     } else {
       // Loose json: classify by shape, same rule app.js's isMeta() uses
       // (app.js:72) — has headingDegrees but no rooms/walls means meta,
