@@ -128,6 +128,14 @@ function updateDevNeedle(){
   }
 }
 
+// Visible on the upload screen too, before any file is loaded — so it is always
+// possible to tell at a glance whether the phone is running the current build
+// or a cached older one.
+(function showVersion(){
+  const el = document.getElementById('verLine');
+  if (el) el.textContent = 'verzija ' + APP_VERSION;
+})();
+
 function setStatus(msg, cls){ statusEl.textContent = msg; statusEl.className = cls || ''; }
 
 // Files are classified up front so a whole selection (scan + meta together, in
@@ -196,7 +204,7 @@ function northBearingDeg(){
 function render(data, filename){
   document.getElementById('projTitle').textContent =
     (window.__meta && window.__meta.name) ? window.__meta.name : filename.replace(/\.json$/i, '');
-  document.getElementById('projSub').textContent = 'CapturedRoom JSON · ' + data.roomCount + ' prostorija · parsirano lokalno';
+  document.getElementById('projSub').textContent = 'CapturedRoom JSON · ' + data.roomCount + ' prostorija · parsirano lokalno · v' + APP_VERSION;
   reportEl.classList.add('show');
   printBtn.style.display = 'inline-block';
   furnPanel.classList.toggle('hidden-panel', !furnToggle.checked);
