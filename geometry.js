@@ -309,14 +309,28 @@ function segmentRooms(data){
         continue;
       }
       zones.push({
-        zoneId, cells: comp.length, area: areaM2,
+        zoneId, cells: comp.length, areaRaster: areaM2, area: areaM2,
         bboxW: (maxCX-minCX+1)*cell, bboxH: (maxCZ-minCZ+1)*cell,
         center: [minX+(minCX+maxCX+1)/2*cell, minZ+(minCZ+maxCZ+1)/2*cell]
       });
     }
   }
 
-  return { zones, grid: { label, gw, gh, minX, minZ, cell } };
+  // The raster measures TOPOLOGY well (which cell belongs to which room) but
+  // always under-measures AREA: every cell the wall band covers is lost, so
+  // the zone areas sum short of the true floor polygon — 32.30 vs 33.34 m²
+  // (3.1%) on a real scan. That polygon area matches meta.json's
+  // floorAreaSquareMetres to six decimals and is the strongest correctness
+  // anchor the tool has, so per-room areas are rescaled to land on it exactly.
+  // Everything reported to the user uses areaExact; areaRaster is kept only
+  // for diagnostics. A finer fix (handing wall-band cells to the nearest
+  // room instead of scaling) would change the split slightly but not the sum.
+  const floorTotal = sum(data.floors, f => f.area);
+  const rasterTotal = zones.reduce((a, z) => a + z.areaRaster, 0);
+  const scale = (floorTotal > 0 && rasterTotal > 0) ? floorTotal / rasterTotal : 1;
+  for (const z of zones) { z.areaExact = z.areaRaster * scale; z.area = z.areaExact; }
+
+  return { zones, grid: { label, gw, gh, minX, minZ, cell }, areaScale: scale, floorTotal };
 }
 
 function zoneIdAt(grid, x, z){
@@ -452,7 +466,39 @@ function wallsByZone(data, segmentation){
   return map;
 }
 
-function reconstructCeilingForRoom(walls){
+// A knee wall's top edge sits exactly at the roof section's knee, so matching
+// wall height against the knee height read off the section identifies it
+// outright rather than by heuristic: on a real scan the knee wall measured
+// 1.649 m and the section's knee came out 1.649 m, while every other wall in
+// the room stood at the 2.483 m ridge height.
+const KNEE_MATCH_TOL_M = 0.06;
+// two sloped walls count as facing the same way (one extrusion direction)
+// when their headings agree modulo 180°
+const SLOPE_PARALLEL_TOL_DEG = 15;
+
+// Ceiling area = the floor it covers, PLUS the surplus each roof slope adds
+// over its own horizontal projection.
+//
+// The earlier model was `average profile × distance between the sloped walls`,
+// which had to guess a length for the WHOLE section — including its flat part,
+// whose area is already known exactly from the floor polygon. Guessing a known
+// quantity is pure loss, and the guess was wrong whenever a sloped wall was not
+// an end gable: on a real scan a 2.42 m stub wall beside a hallway put the two
+// "gables" 7.83 m apart in an 11.93 m room, and averaging its profile with the
+// 3.60 m gable's invented a cross-section that exists nowhere. The result came
+// out 25.54 m² against a 33.34 m² floor — a ceiling smaller than the room it
+// covers — and adding the hallway made it SHRINK (30.19 → 25.54).
+//
+// Splitting the section into flat and sloped parts leaves only one thing to
+// estimate, the length over which the slope runs, and that is measured rather
+// than guessed: it is the knee wall's length. Everything else comes from the
+// floor polygon, which matches meta.json to six decimals.
+//
+// Two guarantees fall out of the decomposition and are covered by tests:
+// the surplus can never be negative, so ceiling >= floor always; and the
+// surplus can never exceed a slope covering the entire footprint, so
+// ceiling <= floor × sectionRatio. Adding floor area always adds ceiling.
+function reconstructCeilingForRoom(walls, floorArea){
   if (!walls.length) return null;
   const profileWalls = walls.filter(w => w.hasSlope);
   const flatWalls = walls.filter(w => !w.hasSlope);
@@ -460,22 +506,6 @@ function reconstructCeilingForRoom(walls){
   if (!profileWalls.length) {
     // no sloped top edge on any wall — flat ceiling = floor footprint
     return { flat: true, profiles: [] };
-  }
-
-  // room depth for profile extrusion: distance between the gable (sloped) walls
-  // when we have at least two; otherwise fall back to the longest flat wall
-  let roomLength = null;
-  if (profileWalls.length >= 2) {
-    const centers = profileWalls.map(w => [w.transform[12], w.transform[14]]);
-    for (let i=0;i<centers.length;i++){
-      for (let j=i+1;j<centers.length;j++){
-        const d = Math.hypot(centers[i][0]-centers[j][0], centers[i][1]-centers[j][1]);
-        if (roomLength === null || d > roomLength) roomLength = d;
-      }
-    }
-  }
-  if (roomLength === null && flatWalls.length) {
-    roomLength = Math.max(...flatWalls.map(w => w.dimensions[0]));
   }
 
   const profiles = profileWalls.map(w => {
@@ -491,13 +521,75 @@ function reconstructCeilingForRoom(walls){
     }
     const heights = pts.map(p => p[1] - minY);
     const kneeWallHeight = heights.length ? Math.min(...heights) : (maxY-minY);
-    return { wallId: w.identifier, ridgeHeight: maxY-minY, kneeWallHeight, minY, maxY, segments, profileLength: len };
+    // horizontal span and surplus both read off THIS polygon, so the ratio
+    // between them stays self-consistent (dimensions[0] deliberately unused)
+    const span = segments.reduce((a,s) => a + s.run, 0);
+    const surplus = segments.reduce((a,s) => a + (s.isSlope ? s.length - s.run : 0), 0);
+    return { wallId: w.identifier, ridgeHeight: maxY-minY, kneeWallHeight, minY, maxY,
+             segments, profileLength: len, span, surplus };
   });
 
-  const avgProfileLen = profiles.reduce((a,p) => a+p.profileLength, 0) / profiles.length;
-  const ceilingArea = roomLength ? avgProfileLen * roomLength : null;
+  // The widest sloped wall sees most of the room's cross-section; blending it
+  // with a narrow stub wall's partial view is what produced the phantom
+  // section before, so the widest one alone is the section of record.
+  const section = profiles.reduce((a, p) => p.span > a.span ? p : a);
+  const sectionRatio = section.span > 0 ? section.profileLength / section.span : 1;
+  const upperBound = floorArea > 0 ? floorArea * sectionRatio : null;
 
-  return { flat: false, profiles, roomLength, avgProfileLen, ceilingArea };
+  // A roof that changes in BOTH directions breaks the single-section
+  // assumption entirely; sloped walls facing different ways are the signal.
+  const dirs = profileWalls.map(w => {
+    const s = wallSegment(w);
+    return ((Math.atan2(s.p2[1]-s.p1[1], s.p2[0]-s.p1[0]) * 180/Math.PI) % 180 + 180) % 180;
+  });
+  const notParallel = dirs.some(a => dirs.some(b => {
+    const d = Math.abs(a-b) % 180;
+    return Math.min(d, 180-d) > SLOPE_PARALLEL_TOL_DEG;
+  }));
+
+  // Length the slope runs for, measured from the knee walls. Knee walls on
+  // opposite sides of one room span the same length, so their total divided
+  // by the number of slopes recovers that length (and stays right when the
+  // two sides differ, as long as their pitches are alike).
+  const kneeWalls = flatWalls.filter(w =>
+    Math.abs(w.dimensions[1] - section.kneeWallHeight) <= KNEE_MATCH_TOL_M &&
+    w.dimensions[1] < section.ridgeHeight - KNEE_MATCH_TOL_M);
+  const slopeCount = section.segments.filter(s => s.isSlope).length;
+  const slopeExtent = (kneeWalls.length && slopeCount > 0)
+    ? kneeWalls.reduce((a, w) => a + w.dimensions[0], 0) / slopeCount
+    : null;
+
+  let ceilingArea = null, method = null, roomLength = null;
+  if (floorArea > 0 && slopeExtent != null) {
+    // clamped: the slope cannot add more than it would covering the whole floor
+    ceilingArea = Math.min(floorArea + section.surplus * slopeExtent, upperBound);
+    method = 'knee';
+  } else if (upperBound != null) {
+    // no knee wall found — assume the slope runs the full footprint
+    ceilingArea = upperBound;
+    method = 'section';
+  } else {
+    // no floor polygon for this room at all: last resort, the old extrusion
+    if (profileWalls.length >= 2) {
+      const centers = profileWalls.map(w => [w.transform[12], w.transform[14]]);
+      for (let i=0;i<centers.length;i++){
+        for (let j=i+1;j<centers.length;j++){
+          const d = Math.hypot(centers[i][0]-centers[j][0], centers[i][1]-centers[j][1]);
+          if (roomLength === null || d > roomLength) roomLength = d;
+        }
+      }
+    }
+    if (roomLength === null && flatWalls.length) roomLength = Math.max(...flatWalls.map(w => w.dimensions[0]));
+    ceilingArea = roomLength ? section.profileLength * roomLength : null;
+    method = 'extrusion';
+  }
+
+  return {
+    flat: false, profiles, section, sectionRatio, floorArea: floorArea || null,
+    slopeSurplus: section.surplus, slopeExtent, slopeCount,
+    kneeWallIds: kneeWalls.map(w => w.identifier),
+    ceilingArea, method, notParallel, roomLength
+  };
 }
 
 // reconstruct per room — mixing gable profiles of one room with wall lengths
@@ -508,11 +600,12 @@ function reconstructCeiling(data){
   const rooms = [];
   let total = 0, anySloped = false, unknown = false;
   for (const r of roomIdxs) {
-    const part = reconstructCeilingForRoom(data.walls.filter(w => w.roomIdx === r));
+    const roomFloor = sum(data.floors.filter(f => f.roomIdx === r), f => f.area);
+    const part = reconstructCeilingForRoom(data.walls.filter(w => w.roomIdx === r), roomFloor);
     if (!part) continue;
     part.roomIdx = r;
     if (part.flat) {
-      part.ceilingArea = sum(data.floors.filter(f => f.roomIdx === r), f => f.area);
+      part.ceilingArea = roomFloor;
     } else {
       anySloped = true;
     }
@@ -526,6 +619,31 @@ function reconstructCeiling(data){
     profiles: rooms.flatMap(p => p.profiles || []),
     ceilingArea: unknown ? null : total
   };
+}
+
+// Ceiling per SEGMENTED room — the unit that actually matters. RoomPlan's own
+// grouping is one CapturedRoom for the whole scan, so reconstructCeiling above
+// runs once over everything and smears one roof section across rooms that do
+// not share it: on a real scan that pushed a hallway's flat ceiling up to the
+// living room's pitch (35.73 m² instead of 35.31 m²). Here each zone brings
+// only its own walls, so a zone with no sloped wall of its own simply gets a
+// flat ceiling equal to its floor.
+function ceilingByZone(data, segmentation){
+  const map = new Map();
+  if (!segmentation || !segmentation.zones.length) return map;
+  const byZone = wallsByZone(data, segmentation);
+  for (const zone of segmentation.zones) {
+    const walls = (byZone.get(zone.zoneId) || []).map(e => e.wall);
+    const floorArea = zone.areaExact != null ? zone.areaExact : zone.area;
+    const part = walls.length ? reconstructCeilingForRoom(walls, floorArea) : null;
+    if (!part || part.flat) {
+      map.set(zone.zoneId, { flat: true, profiles: [], floorArea, ceilingArea: floorArea, method: 'flat' });
+    } else {
+      part.zoneId = zone.zoneId;
+      map.set(zone.zoneId, part);
+    }
+  }
+  return map;
 }
 
 // true-north bearing of world -Z, derived from meta.json heading combined with
@@ -611,7 +729,7 @@ function fmtArea(n){ if (n === null || n === undefined || isNaN(n)) return '—'
 // Bump together with the ?v= query strings in index.html when shipping —
 // mobile Safari otherwise keeps serving stale JS after a deploy, which has
 // repeatedly led to fixes being tested against old code.
-const APP_VERSION = '2026-08-07d';
+const APP_VERSION = '2026-08-07e';
 
 const APPLE_EPOCH_MS = 978307200000; // 2001-01-01 UTC — Apple/Core Data reference date
 
@@ -623,7 +741,7 @@ if (typeof module !== 'undefined' && module.exports) {
     floorPolygon, CONF_LEVELS, annotate, buildData, catLabel, wallNetArea,
     reconstructCeilingForRoom, reconstructCeiling, northBearingFrom, planOrientation,
     sum, fmt, fmtArea, APPLE_EPOCH_MS, APP_VERSION, HEADING_OFFSET_DEG,
-    segmentRooms, zoneIdAt, classifyZone, furnitureByZone, wallsByZone,
+    segmentRooms, zoneIdAt, classifyZone, furnitureByZone, wallsByZone, ceilingByZone,
     OBJECT_VOTES, ZONE_LABELS_HR,
     CELL_M, WALL_BAND_HALF_M, MIN_ZONE_AREA_M2
   };

@@ -87,6 +87,7 @@
 
   .profile-mini{ display:inline-block; vertical-align:middle; margin-left:6px; }
 
+  .floor-check{ font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; font-size:10px; color:var(--ink-faint); margin-top:9px; line-height:1.5; }
   .assumption{ font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; font-size:10.5px; color:var(--ink-dim); background:var(--bg-panel2); border-left:2px solid var(--amber); padding:8px 10px; margin-top:10px; line-height:1.6; }
   .assumption .warn{ color:var(--rose); }
 
