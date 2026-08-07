@@ -205,6 +205,77 @@ ok('esc neutralizes html', g.esc('<img onerror=x>') === '&lt;img onerror=x&gt;')
   eq('no wall is left unassigned', orphan.length, 0);
   function wallsByZone2(d, s){ return g.wallsByZone(d, s); }
   function wallsByZone_all(map){ const ids = new Set(); for (const list of map.values()) for (const x of list) ids.add(x.wall.identifier); return ids; }
+
+  // per-room areas must land exactly on the floor polygon: the raster always
+  // measures short (wall bands eat cells) and a 3% shortfall in the headline
+  // square metres is not acceptable in a cost estimate
+  const exactTotal = g.sum(seg.zones, z => z.areaExact);
+  eq('per-room areas sum to the floor polygon exactly', exactTotal, g.sum(twoRoomData.floors, f => f.area), 1e-9);
+  ok('raster area is kept alongside for diagnostics', seg.zones.every(z => z.areaRaster > 0 && z.areaRaster <= z.areaExact + 1e-9));
+
+  // a room with no sloped wall of its own must not inherit another room's roof
+  const ceilByZone = g.ceilingByZone(twoRoomData, seg);
+  ok('flat rooms get a flat ceiling equal to their own floor',
+    seg.zones.every(z => ceilByZone.get(z.zoneId).flat &&
+      Math.abs(ceilByZone.get(z.zoneId).ceilingArea - z.areaExact) < 1e-9));
+}
+
+// --- ceiling: flat part + slope (regression for the "ceiling smaller than the
+// floor" bug, and for adding a room making the ceiling SHRINK) ---
+{
+  // room 8 m long × 4 m wide. Gable wall spans the full 4 m width: 1 m of
+  // slope rising 0.5 m, then 3 m flat. Knee wall is 6 m long, so the slope
+  // runs over 6 of the 8 m — the case the old model could not express.
+  const RIDGE = 2.5, KNEE = 2.0;
+  const gable = [[-2,-1.25,0],[2,-1.25,0],[2,1.25,0],[-1,1.25,0],[-2,0.75,0]];
+  const w = (id, len, axX, axZ, tx, tz, h, corners) => ({
+    identifier:id, category:{wall:{}}, confidence:{high:{}}, dimensions:[len,h,0],
+    transform: mat(axX,axZ, tx,h/2,tz), ...(corners ? { polygonCorners: corners } : {})
+  });
+  const fm = [1,0,0,0, 0,0,1,0, 0,-1,0,0, 0,0,0,1];
+  const mkFloor = (id, poly, dims) => ({ identifier:id, category:{floor:{}}, confidence:{high:{}}, dimensions:dims, transform:fm, polygonCorners:poly });
+
+  const atticWalls = [
+    w('G-far',  4, 0,1, 0,2, RIDGE, gable),   // gable, full width
+    w('G-near', 4, 0,1, 8,2, RIDGE, gable),   // gable, full width
+    w('KNEE',   6, 1,0, 3,0, KNEE),           // knee wall — height = section knee
+    w('FULL',   8, 1,0, 4,4, RIDGE),          // opposite side, full height
+  ];
+  const atticFloor = mkFloor('F', [[0,0,0],[8,0,0],[8,4,0],[0,4,0]], [8,4,0]);
+  const attic = g.buildData({ rooms:[{ walls: atticWalls, floors:[atticFloor] }] });
+  const c = g.reconstructCeilingForRoom(attic.walls, 32);
+
+  const surplus = Math.hypot(1, 0.5) - 1;               // extra metre of surface per metre of width
+  eq('section read off the widest sloped wall', c.section.span, 4, 1e-9);
+  eq('slope surplus per metre of width', c.slopeSurplus, surplus, 1e-9);
+  eq('knee wall identified by matching the section knee height', c.kneeWallIds.length, 1);
+  eq('slope extent measured from the knee wall, not guessed', c.slopeExtent, 6, 1e-9);
+  eq('ceiling = floor + surplus × slope length', c.ceilingArea, 32 + surplus*6, 1e-9);
+  ok('method is the measured one', c.method === 'knee');
+  ok('parallel gables do not trip the both-directions warning', c.notParallel === false);
+
+  // the two guarantees that make the old bug impossible
+  ok('ceiling is never smaller than the floor it covers', c.ceilingArea >= 32);
+  ok('ceiling never exceeds the slope covering the whole floor', c.ceilingArea <= 32 * c.sectionRatio + 1e-9);
+
+  // THE regression: bolt a 6 m² annex onto the same room. Ceiling must grow.
+  const bigFloor = mkFloor('F2', [[0,0,0],[8,0,0],[8,4,0],[10,4,0],[10,7,0],[8,7,0],[0,4,0]], [10,7,0]);
+  const bigger = g.buildData({ rooms:[{ walls: atticWalls, floors:[bigFloor] }] });
+  const cBig = g.reconstructCeilingForRoom(bigger.walls, g.sum(bigger.floors, f => f.area));
+  ok('adding floor area always adds ceiling — never shrinks it', cBig.ceilingArea > c.ceilingArea);
+  ok('bigger room still never dips below its own floor', cBig.ceilingArea >= g.sum(bigger.floors, f => f.area));
+
+  // no knee wall in the data: fall back to the slope covering the whole floor
+  const noKnee = g.buildData({ rooms:[{ walls: atticWalls.filter(x => x.identifier !== 'KNEE'), floors:[atticFloor] }] });
+  const cNo = g.reconstructCeilingForRoom(noKnee.walls, 32);
+  ok('without a knee wall the section factor takes over', cNo.method === 'section');
+  eq('fallback = floor × section ratio', cNo.ceilingArea, 32 * cNo.sectionRatio, 1e-9);
+  ok('fallback is the upper bound, so it is never smaller', cNo.ceilingArea >= c.ceilingArea);
+
+  // a roof changing in both directions breaks the single-section assumption
+  const crossed = g.buildData({ rooms:[{ walls:[ atticWalls[0], w('G-cross', 4, 1,0, 4,0, RIDGE, gable) ], floors:[atticFloor] }] });
+  ok('perpendicular sloped walls raise the both-directions warning',
+    g.reconstructCeilingForRoom(crossed.walls, 32).notParallel === true);
 }
 
 console.log('');

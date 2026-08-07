@@ -115,9 +115,19 @@ function northBearingDeg(){
 /* ---------- Rendering ---------- */
 
 function render(data, filename){
+  // Rooms are segmented ONCE here and threaded through every panel. RoomPlan's
+  // own grouping is not a room breakdown — a whole scan arrives as a single
+  // rooms[0] entry, so its roomCount says "one capture", not "one room". The
+  // report is built from the rooms we find, and every panel must agree on the
+  // same set of them.
+  const seg = segmentRooms(data);
+  const zoneCount = seg.zones.length;
+
   document.getElementById('projTitle').textContent =
     (window.__meta && window.__meta.name) ? window.__meta.name : filename.replace(/\.json$/i, '');
-  document.getElementById('projSub').textContent = 'CapturedRoom JSON · ' + data.roomCount + ' prostorija · parsirano lokalno · v' + APP_VERSION;
+  document.getElementById('projSub').textContent = 'CapturedRoom JSON · ' +
+    (zoneCount ? zoneCount + (zoneCount === 1 ? ' prostorija' : ' prostorije') : data.roomCount + ' prostorija') +
+    ' · parsirano lokalno · v' + APP_VERSION;
   reportEl.classList.add('show');
   printBtn.style.display = 'inline-block';
   furnPanel.classList.toggle('hidden-panel', !furnToggle.checked);
@@ -128,6 +138,16 @@ function render(data, filename){
   const netWallArea = sum(data.walls, w => wallNetArea(data, w));
   const floorArea = sum(data.floors, f => f.area);
 
+  // Per-room figures — the ones that go into a cost estimate. Floor sums to the
+  // polygon exactly by construction; walls sum HIGHER than the deduplicated
+  // total because a shared wall needs painting on both sides, one item per room.
+  const wallMap = wallsByZone(data, seg);
+  const ceilMap = ceilingByZone(data, seg);
+  const roomFloor = sum(seg.zones, z => z.areaExact);
+  const roomCeiling = sum(seg.zones, z => ceilMap.get(z.zoneId).ceilingArea);
+  let wallFaces = 0, roomWallNet = 0;
+  for (const list of wallMap.values()) { wallFaces += list.length; roomWallNet += sum(list, w => w.netArea); }
+
   const wallIds = new Set(data.walls.map(w => w.identifier));
   const unlinkedOpenings = data.openings.filter(o => !wallIds.has(o.parentIdentifier));
   const unlinkedArea = sum(unlinkedOpenings, o => o.area);
@@ -135,44 +155,45 @@ function render(data, filename){
     ? ' <span class="warn">Upozorenje: ' + unlinkedOpenings.length + ' otvora (' + fmt(unlinkedArea) + ' m²) nije povezano ni s jednim zidom pa nisu odbijeni od neto površine.</span>'
     : '';
 
-  const ceiling = reconstructCeiling(data);
-  const ceilingArea = ceiling ? ceiling.ceilingArea : null;
+  const ceilingArea = zoneCount ? roomCeiling : null;
+  const podArea = zoneCount ? roomFloor : floorArea;
 
   const northB = northBearingDeg();
   document.getElementById('metaStrip').innerHTML =
-    metaChip('Zidova', data.walls.length) + metaChip('Otvora', data.openings.length) + metaChip('Namještaja', data.furniture.length) + metaChip('Prostorija', data.roomCount) +
+    metaChip('Zidova', data.walls.length + (wallFaces ? ' (' + wallFaces + ' lica)' : '')) +
+    metaChip('Otvora', data.openings.length) + metaChip('Namještaja', data.furniture.length) +
+    metaChip('Prostorija', zoneCount || data.roomCount) +
     (northB != null ? metaChip('Sjever', 'meta ✓') : '');
 
   const statsObj = {
-    'Površina poda': fmtArea(floorArea),
+    'Površina poda': fmtArea(podArea),
     'Strop (rekonstruirano)': fmtArea(ceilingArea),
     'Zidovi (bruto)': fmtArea(grossWallArea),
     'Zidovi (neto)': fmtArea(netWallArea),
+    'Zidovi po sobama': zoneCount ? fmtArea(roomWallNet) : '—',
     'Otvori ukupno': fmtArea(openingArea),
-    'Strop − pod': (ceilingArea != null && floorArea ? (ceilingArea-floorArea >= 0 ? '+' : '') + fmtArea(ceilingArea-floorArea) : '—'),
+    'Strop − pod': (ceilingArea != null && podArea ? (ceilingArea-podArea >= 0 ? '+' : '') + fmtArea(ceilingArea-podArea) : '—'),
   };
-  // app's own numbers from meta.json as a cross-check (its wallArea is net: gross minus all openings)
-  if (window.__meta) {
-    if (window.__meta.floorAreaSquareMetres != null) statsObj['Pod (app meta)'] = fmtArea(window.__meta.floorAreaSquareMetres);
-    if (window.__meta.wallAreaSquareMetres != null) statsObj['Zidovi neto (app meta)'] = fmtArea(window.__meta.wallAreaSquareMetres);
-  }
   renderStats(statsObj);
+  renderFloorCheck(seg, floorArea);
 
   renderMetaPanel();
-  renderZones(data);
+  renderZones(data, seg);
   renderWallsTable(data);
-  renderCeilingPanel(ceiling);
+  renderCeilingPanel(data, seg);
   renderOpeningsTable(data);
   renderFurnitureTable(data.furniture);
   renderPlan(data, furnToggle.checked);
 
   document.getElementById('footnote').textContent =
     'Sve mjere izvučene izravno iz CapturedRoom JSON strukture (dimensions / transform / polygonCorners po elementu). ' +
-    'Elementi koji se ponavljaju u više prostorija broje se jednom (deduplikacija po identifieru). ' +
-    'Neto površina zidova koristi parentIdentifier za povezivanje otvora s pravim zidom. ' +
-    'Strop nije izravno skeniran (RoomPlan nema "ceiling" kategoriju) — rekonstruiran je po prostoriji iz profila zidova s kosim gornjim rubom, ' +
-    'uz pretpostavku da se poprečni presjek proteže cijelom dužinom prostorije (jednostavan jednostrešni/dvostrešni krov). ' +
-    'Za složenije oblike krova (koji se mijenjaju u oba smjera) ova metoda nije pouzdana. ' +
+    'RoomPlan-ova podjela se ne koristi kao struktura izvještaja — cijeli sken dolazi kao jedan rooms[0] zapis, pa njegov roomCount znači "jedno snimanje", ne jedna prostorija. ' +
+    'Prostorije se pronalaze segmentacijom tlocrta, i pod, strop i zidovi računaju se po svakoj takvoj prostoriji zasebno. ' +
+    'Površine soba normaliziraju se na poligon poda, pa im je zbroj točno jednak ukupnom podu (mreža sama po sebi mjeri nešto manje). ' +
+    'Neto površina zidova koristi parentIdentifier za povezivanje otvora s pravim zidom; ukupni "Zidovi (neto)" broje svaki zid jednom, a "Zidovi po sobama" dijeljeni zid s obje strane (broj za premaz). ' +
+    'Strop nije izravno skeniran (RoomPlan nema "ceiling" kategoriju) — računa se kao pod te prostorije uvećan za višak koji kosina dodaje iznad svoje tlocrtne projekcije. ' +
+    'Ravni dio stropa je time točno poznat, a procjenjuje se samo dužina kosine — i ona se mjeri iz koljenastog zida, prepoznatog po visini koja odgovara koljenu iz presjeka. ' +
+    'Pretpostavka je isti poprečni presjek kroz cijelu prostoriju (jednostavan jednostrešni/dvostrešni krov); za krovove koji se mijenjaju u oba smjera metoda nije pouzdana i to se ispisuje uz prostoriju. ' +
     'Orijentacija: pravi sjever = meta.json heading − referenceOriginTransform rotacija + 90° ' +
     '(RoomPlan interno poravnava koordinate sa zidovima, a korekcija od +90° je kalibrirana fizičkom provjerom u prostoriji: ' +
     'app bilježi sirovi CLHeading koji mjeri vrh uređaja, ne smjer kamere). ' +
@@ -206,9 +227,28 @@ function renderMetaPanel(){
     rows.push(['Koordinate', m.latitude.toFixed(6) + ', ' + m.longitude.toFixed(6)]);
   }
   if (m.headingDegrees != null) rows.push(['Heading', m.headingDegrees.toFixed(1) + '°']);
-  if (m.roomCount != null) rows.push(['Prostorija', String(m.roomCount)]);
+  // labelled as RoomPlan's own count so it cannot be mistaken for the number of
+  // rooms in the report — RoomPlan counts capture sessions, not rooms
+  if (m.roomCount != null) rows.push(['Prostorija (RoomPlan)', String(m.roomCount)]);
   document.getElementById('metaContent').innerHTML =
     '<table><tbody>' + rows.map(r => '<tr><th style="width:32%;">' + r[0] + '</th><td>' + r[1] + '</td></tr>').join('') + '</tbody></table>';
+}
+
+// One small line, nothing more: the per-room floor areas and their sum, so a
+// scan that looks suspicious can be checked by hand against a measurement.
+// Deliberately floor-only — RoomPlan reports a shared wall as a single entity,
+// so there is no independent figure to check our per-room wall split against.
+function renderFloorCheck(seg, floorArea){
+  const el = document.getElementById('floorCheck');
+  if (!el) return;
+  if (!seg || !seg.zones.length) { el.textContent = ''; el.style.display = 'none'; return; }
+  const parts = orderedZones(seg).map(z => fmt(z.areaExact));
+  const total = sum(seg.zones, z => z.areaExact);
+  const metaFloor = window.__meta && window.__meta.floorAreaSquareMetres;
+  el.textContent = 'kontrola poda: ' + parts.join(' + ') + ' = ' + fmt(total) + ' m²' +
+    (metaFloor != null ? ' · meta ' + metaFloor.toFixed(3) + (Math.abs(total - metaFloor) < 0.01 ? ' ✓' : ' ⚠') : '') +
+    (Math.abs(total - floorArea) < 0.01 ? '' : ' · tlocrt ' + fmt(floorArea) + ' ⚠');
+  el.style.display = '';
 }
 
 function renderStats(obj){
@@ -223,33 +263,50 @@ function renderStats(obj){
 // nearest-point heuristic whenever it finds actual rooms. Falls back to the
 // coarse RoomPlan `sections` display (no regression) if segmentation finds
 // nothing — e.g. a scan with no floor polygon at all.
-function renderZones(data){
+function renderZones(data, seg){
   const el = document.getElementById('zonesContent');
-  const seg = segmentRooms(data);
-  if (seg.zones.length) {
+  if (seg && seg.zones.length) {
     renderZonesSegmented(el, data, seg);
   } else {
     renderZonesFallback(el, data);
   }
 }
 
+// stable reading order (top-to-bottom, then left-to-right) so a room keeps its
+// number between renders — shared by the zone list and the ceiling panel
+function orderedZones(seg){
+  return [...seg.zones].sort((a,b) => a.center[1]-b.center[1] || a.center[0]-b.center[0]);
+}
+function zoneTitles(data, seg){
+  const furnByZone = furnitureByZone(data, seg.grid);
+  const titles = new Map();
+  orderedZones(seg).forEach((z, i) => {
+    const cls = classifyZone(z, furnByZone.get(z.zoneId) || []);
+    titles.set(z.zoneId, cls === 'Other' ? 'Soba ' + (i+1) : ZONE_LABELS_HR[cls]);
+  });
+  return titles;
+}
+
 function renderZonesSegmented(el, data, seg){
   const furnByZone = furnitureByZone(data, seg.grid);
   const wallMap = wallsByZone(data, seg);
-  // left-to-right, top-to-bottom reading order for a stable, predictable list
-  const ordered = [...seg.zones].sort((a,b) => a.center[1]-b.center[1] || a.center[0]-b.center[0]);
+  const ceilMap = ceilingByZone(data, seg);
+  const titles = zoneTitles(data, seg);
+  const ordered = orderedZones(seg);
 
   let html = '';
-  ordered.forEach((z, i) => {
+  ordered.forEach((z) => {
     const objs = furnByZone.get(z.zoneId) || [];
-    const cls = classifyZone(z, objs);
-    const title = cls === 'Other' ? 'Soba ' + (i+1) : ZONE_LABELS_HR[cls];
+    const title = titles.get(z.zoneId);
     const walls = (wallMap.get(z.zoneId) || []).slice().sort((a,b) => b.netArea - a.netArea);
     const wallsTotal = sum(walls, w => w.netArea);
+    const ceil = ceilMap.get(z.zoneId);
 
     html += '<div class="zone-block">';
     html += '<div class="zone-title">' + esc(title) + '</div>';
-    html += '<div class="zone-sub">' + fmtArea(z.area) + ' pod · ' + fmtArea(wallsTotal) + ' zidovi (za premaz)' +
+    html += '<div class="zone-sub">' + fmtArea(z.area) + ' pod · ' +
+      (ceil ? fmtArea(ceil.ceilingArea) + ' strop' + (ceil.flat ? ' (ravan)' : '') + ' · ' : '') +
+      fmtArea(wallsTotal) + ' zidovi (za premaz)' +
       (objs.length ? ' · ' + objs.map(o=>esc(catLabel(o))).join(' · ') : ' · nema namještaja') + '</div>';
     if (walls.length) {
       html += '<table style="margin-top:6px;"><thead><tr><th>Zid</th><th>Dim (m)</th><th>Površina</th></tr></thead><tbody>';
@@ -320,28 +377,58 @@ function renderWallsTable(data){
   }).join('');
 }
 
-function renderCeilingPanel(ceiling){
+// One block per SEGMENTED room. Each room's ceiling is built only from its own
+// sloped walls, so a flat hallway is never dragged up to the living room's pitch.
+function renderCeilingPanel(data, seg){
   const el = document.getElementById('ceilingContent');
-  if (!ceiling) { el.innerHTML = '<div style="color:var(--ink-faint); font-family:ui-monospace,monospace; font-size:11.5px;">Nema zidova za rekonstrukciju.</div>'; return; }
-  if (ceiling.flat) {
-    el.innerHTML = '<div style="font-family:ui-monospace,monospace; font-size:11.5px; color:var(--ink-dim);">Nijedan zid nema kosi gornji rub (nema detektiranih kosina) — strop se tretira kao ravan, jednak tlocrtu poda.</div>';
+  if (!data.walls.length) { el.innerHTML = '<div style="color:var(--ink-faint); font-family:ui-monospace,monospace; font-size:11.5px;">Nema zidova za rekonstrukciju.</div>'; return; }
+  if (!seg || !seg.zones.length) {
+    el.innerHTML = '<div style="font-family:ui-monospace,monospace; font-size:11.5px; color:var(--ink-dim);">Segmentacija nije pronašla prostorije — strop nije rekonstruiran po sobama.</div>';
     return;
   }
-  let html = '<table><thead><tr><th>Zid</th><th>Greben (puna V)</th><th>Koljenasti zid</th><th>Segmenti</th></tr></thead><tbody>';
-  for (const p of ceiling.profiles) {
-    const segStr = p.segments.map(s => s.isSlope ? (s.angleDeg.toFixed(1) + '° (' + s.run.toFixed(2) + '×' + s.rise.toFixed(2) + 'm)') : ('ravno ' + s.run.toFixed(2) + 'm')).join(', ');
-    html += '<tr><td>' + esc(String(p.wallId).slice(0,8)) + '</td><td>' + fmt(p.ridgeHeight) + ' m</td><td>' + fmt(p.kneeWallHeight) + ' m</td><td style="font-size:10.5px;">' + esc(segStr) + '</td></tr>';
-  }
-  html += '</tbody></table>';
-  const multi = ceiling.rooms.filter(r => !r.flat).length > 1 || ceiling.rooms.length > 1;
-  for (const room of ceiling.rooms) {
-    if (room.flat) continue;
-    const tag = multi ? 'Prostorija ' + (room.roomIdx+1) + ': ' : '';
-    if (room.ceilingArea != null) {
-      html += '<div class="assumption">' + tag + 'prosječni presjek ' + fmt(room.avgProfileLen) + ' m × duljina prostorije ' + fmt(room.roomLength) + ' m = <strong style="color:var(--line-bright);">' + fmt(room.ceilingArea) + ' m²</strong> površine stropa. Duljina = razmak kosih (zabatnih) zidova, odnosno najdulji ravni zid kad postoji samo jedan kosi. Pretpostavka: isti poprečni presjek kroz cijelu duljinu (jednostavan krov) — nije pouzdano za krovove koji se mijenjaju u oba smjera.</div>';
-    } else {
-      html += '<div class="assumption">' + tag + '<span class="warn">nedovoljno podataka za duljinu prostorije — površina stropa nije izračunata.</span></div>';
+  const ceilMap = ceilingByZone(data, seg);
+  const titles = zoneTitles(data, seg);
+  let html = '';
+
+  for (const z of orderedZones(seg)) {
+    const c = ceilMap.get(z.zoneId);
+    if (!c) continue;
+    html += '<div class="zone-block"><div class="zone-title">' + esc(titles.get(z.zoneId)) + '</div>';
+
+    if (c.flat) {
+      html += '<div class="assumption">Nijedan zid ove prostorije nema kosi gornji rub — strop je ravan i jednak podu: <strong style="color:var(--line-bright);">' + fmt(c.ceilingArea) + ' m²</strong>.</div></div>';
+      continue;
     }
+
+    html += '<table style="margin-top:6px;"><thead><tr><th>Zid</th><th>Greben (puna V)</th><th>Koljenasti zid</th><th>Segmenti</th></tr></thead><tbody>';
+    for (const p of c.profiles) {
+      const segStr = p.segments.map(s => s.isSlope ? (s.angleDeg.toFixed(1) + '° (' + s.run.toFixed(2) + '×' + s.rise.toFixed(2) + 'm)') : ('ravno ' + s.run.toFixed(2) + 'm')).join(', ');
+      html += '<tr><td>' + esc(String(p.wallId).slice(0,8)) + (p === c.section ? ' <span class="badge b-shared">presjek</span>' : '') + '</td><td>' + fmt(p.ridgeHeight) + ' m</td><td>' + fmt(p.kneeWallHeight) + ' m</td><td style="font-size:10.5px;">' + esc(segStr) + '</td></tr>';
+    }
+    html += '</tbody></table>';
+
+    if (c.ceilingArea == null) {
+      html += '<div class="assumption"><span class="warn">nedovoljno podataka — površina stropa nije izračunata.</span></div></div>';
+      continue;
+    }
+
+    let formula;
+    if (c.method === 'knee') {
+      formula = 'pod ' + fmt(c.floorArea) + ' m² + kosina ' + c.slopeSurplus.toFixed(4) + ' m po metru širine × ' + fmt(c.slopeExtent) + ' m dužine = <strong style="color:var(--line-bright);">' + fmt(c.ceilingArea) + ' m²</strong>. ' +
+        'Ravni dio stropa je već točno poznat iz tlocrta poda, pa se procjenjuje samo koliko površine kosina dodaje iznad svoje tlocrtne projekcije. ' +
+        'Dužina kosine nije pretpostavljena nego izmjerena — to je dužina koljenastog zida (' + c.kneeWallIds.map(x => esc(String(x).slice(0,8))).join(', ') + '), prepoznatog po tome što mu visina odgovara koljenu iz presjeka.';
+    } else if (c.method === 'section') {
+      formula = 'pod ' + fmt(c.floorArea) + ' m² × ' + c.sectionRatio.toFixed(4) + ' = <strong style="color:var(--line-bright);">' + fmt(c.ceilingArea) + ' m²</strong>. ' +
+        'Faktor je dužina presjeka podijeljena s njegovim horizontalnim rasponom — koliko je kosi strop duži od svoje tlocrtne projekcije. ' +
+        'U ovoj prostoriji nije pronađen koljenasti zid, pa se pretpostavlja da kosina ide cijelim tlocrtom (gornja granica).';
+    } else {
+      formula = 'presjek ' + fmt(c.section.profileLength) + ' m × ' + fmt(c.roomLength) + ' m = <strong style="color:var(--line-bright);">' + fmt(c.ceilingArea) + ' m²</strong>. ' +
+        'Prostorija nema vlastiti poligon poda, pa se presjek proteže po procijenjenoj dužini — najmanje pouzdan od tri načina.';
+    }
+    html += '<div class="assumption">' + formula +
+      ' Pretpostavka: isti poprečni presjek kroz cijelu prostoriju (jednostavan krov).' +
+      (c.notParallel ? ' <span class="warn">Kosi zidovi ove prostorije nisu međusobno paralelni — krov se mijenja u oba smjera i ova procjena nije pouzdana.</span>' : '') +
+      '</div></div>';
   }
   el.innerHTML = html;
 }
