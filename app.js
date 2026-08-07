@@ -1,6 +1,6 @@
 /* ARCHIFEST Plan — app.js
  * DOM wiring and rendering: file loading, report panels, SVG floor plan,
- * compass rose and live device compass. Pure math lives in geometry.js.
+ * compass rose. Pure math lives in geometry.js.
  */
 
 const dropzone = document.getElementById('dropzone');
@@ -40,93 +40,6 @@ function debounce(fn, ms){
 window.addEventListener('resize', debounce(() => {
   if (window.__lastData && orientationOverride === null) renderPlan(window.__lastData, furnToggle.checked);
 }, 150));
-
-/* ---------- Live device compass ---------- */
-
-const devBtn = document.getElementById('devCompassBtn');
-const devCompass = { on: false, heading: null };
-if (!('DeviceOrientationEvent' in window)) devBtn.style.display = 'none';
-devBtn.addEventListener('click', async () => {
-  if (devCompass.on) { stopDevCompass(); return; }
-  try {
-    // iOS requires an explicit permission request from a user gesture
-    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-      const p = await DeviceOrientationEvent.requestPermission();
-      if (p !== 'granted') { setStatus('Pristup kompasu uređaja odbijen.', 'err'); return; }
-    }
-    window.addEventListener('deviceorientationabsolute', onDevOrientation);
-    window.addEventListener('deviceorientation', onDevOrientation);
-    window.addEventListener('orientationchange', onScreenRotate);
-    devCompass.on = true;
-    devBtn.classList.add('active');
-  } catch (e) {
-    setStatus('Kompas uređaja nije dostupan: ' + e.message, 'err');
-  }
-});
-function stopDevCompass(){
-  window.removeEventListener('deviceorientationabsolute', onDevOrientation);
-  window.removeEventListener('deviceorientation', onDevOrientation);
-  window.removeEventListener('orientationchange', onScreenRotate);
-  devCompass.on = false;
-  devCompass.heading = null;
-  devBtn.classList.remove('active');
-  const n = document.getElementById('devNeedle');
-  if (n) n.style.display = 'none';
-  const dbg = document.getElementById('devDebug');
-  if (dbg) { dbg.textContent = ''; dbg.style.display = 'none'; }
-}
-function onScreenRotate(){ requestAnimationFrame(updateDevNeedle); }
-
-// DIO A: raw sensor heading is relative to the device's PHYSICAL top edge and
-// does not account for how the browser's viewport is currently rotated
-// (portrait / landscape-primary / landscape-secondary) — a known gap in both
-// webkitCompassHeading and generic deviceorientationabsolute alpha. Correct it
-// with the live screen rotation angle. SCREEN_ANGLE_SIGN mirrors the earlier
-// HEADING_OFFSET_DEG pattern: flip to -1 in one line if a physical test shows
-// the sign is backwards.
-const SCREEN_ANGLE_SIGN = 1;
-function currentScreenAngle(){
-  if (screen.orientation && typeof screen.orientation.angle === 'number') return screen.orientation.angle;
-  if (typeof window.orientation === 'number') return window.orientation; // legacy iOS fallback
-  return 0;
-}
-let devRaf = false;
-function onDevOrientation(e){
-  let raw = null;
-  // iOS: physically verified (two readings, one after a real 90deg clockwise
-  // turn) that webkitCompassHeading on this device increases COUNTER-
-  // clockwise — opposite of the documented CLHeading convention — so it's
-  // inverted here. Facing true north read 359deg (should be ~0); after
-  // turning 90deg clockwise it read 270deg (should be ~90, not decrease).
-  // 360-x flips it back to the standard clockwise-increasing convention
-  // the rest of this file assumes. Android's alpha path already applies
-  // its own 360-x conversion for unrelated reasons and is left as-is
-  // (untested here) — do not double-flip it if this ever needs revisiting.
-  if (e.webkitCompassHeading != null) raw = (360 - e.webkitCompassHeading) % 360;
-  else if (e.absolute && e.alpha != null) raw = 360 - e.alpha;          // Android absolute orientation
-  if (raw == null) return;
-  const screenAngle = currentScreenAngle();
-  devCompass.rawHeading = raw;
-  devCompass.screenAngle = screenAngle;
-  devCompass.heading = ((raw + SCREEN_ANGLE_SIGN * screenAngle) % 360 + 360) % 360;
-  if (!devRaf) { devRaf = true; requestAnimationFrame(updateDevNeedle); }
-}
-function updateDevNeedle(){
-  devRaf = false;
-  const n = document.getElementById('devNeedle');
-  const dbg = document.getElementById('devDebug');
-  const st = window.__compassState;
-  if (!n || !devCompass.on || devCompass.heading == null) return;
-  if (!st || st.northB == null) { n.style.display = 'none'; if (dbg) dbg.style.display = 'none'; return; }  // plan north unknown
-  // points at true north as seen from the device — see needleAngleFrom()
-  const ang = needleAngleFrom(devCompass.heading);
-  n.style.display = '';
-  n.setAttribute('transform', 'rotate(' + ang + ' ' + st.cx + ' ' + st.cy + ')');
-  if (dbg) {
-    dbg.style.display = '';
-    dbg.textContent = 's' + devCompass.rawHeading.toFixed(0) + '° e' + devCompass.screenAngle.toFixed(0) + '° r' + ang.toFixed(0) + '°';
-  }
-}
 
 // Visible on the upload screen too, before any file is loaded — so it is always
 // possible to tell at a glance whether the phone is running the current build
@@ -266,10 +179,7 @@ function render(data, filename){
     'Bez meta.json orijentacija je proizvoljna po sesiji skeniranja — kompas tada prati pretpostavljeni sjever. ' +
     'Tlocrt je poravnat s najdužim zidom (uvijek ravan); sjever pokazuje kompasna ruža u legendi. Kad je sjever poznat, od četiri osne rotacije ' +
     '(sve jednako ravne, isti tlocrt) bira se ona gdje je sjever najbliže gore — time se ujedno određuje Portrait/Landscape, jer rotacija od 90° mijenja i to. ' +
-    'Ručnim prekidačem se to nadjačava, ali tada sjever u pravilu ostaje ~90° od gore. Živa strelica (🧭) dodatno kompenzira trenutni kut rotacije ekrana (screen.orientation) — sirovi kompasni signal mjeri ' +
-    'fizički vrh uređaja, ne trenutnu orijentaciju sadržaja na ekranu. Smjer rasta signala je fizički provjeren i invertiran gdje je bilo potrebno — ' +
-    'obrnut od dokumentirane konvencije na testiranom uređaju. Strelica pokazuje pravi sjever u odnosu na uređaj (kao pravi kompas), neovisno o rotaciji tlocrta; ' +
-    'smjer okretanja i pomak su kalibrirani fizičkom provjerom u prostoriji. ' +
+    'Ručnim prekidačem se to nadjačava, ali tada sjever u pravilu ostaje ~90° od gore. ' +
     'Simbol otvaranja vrata (krilo + luk) je konvencija — sken ne bilježi stranu šarki ni smjer otvaranja. ' +
     'Adresa se dohvaća reverse geocodingom (OpenStreetMap Nominatim) — jedino se koordinate iz meta.json šalju tom servisu; sken ostaje lokalno.';
 }
@@ -628,7 +538,7 @@ function renderPlan(data, showFurniture){
   // points at true north when meta.json heading is known, otherwise at the
   // assumed north (world -Z) — rotating together with the plan in both cases
   const roseDeg = (((rotDeg - (northB != null ? northB : 0)) % 360) + 360) % 360;
-  renderCompass(roseDeg, northB, northB != null ? 'meta.json' : 'procjena');
+  renderCompass(roseDeg, northB != null ? 'meta.json' : 'procjena');
 
   legend.innerHTML =
     '<span><span class="sw lg-wall"></span>Ravan zid</span>' +
@@ -638,14 +548,12 @@ function renderPlan(data, showFurniture){
 }
 
 // draws the compass rose into the fixed-size #compassSvg in the legend row
-function renderCompass(roseDeg, northB, label){
+function renderCompass(roseDeg, label){
   const c = document.getElementById('compassSvg');
   const cx = 44, cy = 44, r = 40, stroke = 1.1, fontSize = 14;
-  window.__compassState = { roseDeg, northB, cx, cy };
   const parts = [];
   compassRose(parts, cx, cy, r, roseDeg, stroke, fontSize, label);
   c.innerHTML = parts.join('');
-  updateDevNeedle();
 }
 
 // a proper compass rose: rings, degree ticks, cardinal letters and a needle;
@@ -673,9 +581,5 @@ function compassRose(parts, cx, cy, r, roseDeg, stroke, fontSize, label){
   g += '<polygon class="sv-muted" opacity="0.55" points="' + cx + ',' + (cy + r*0.42) + ' ' + (cx - r*0.09) + ',' + cy + ' ' + (cx + r*0.09) + ',' + cy + '"/>';
   g += '</g>';
   parts.push(g);
-  // live device-orientation marker: a small solid arrow (hidden until enabled)
-  parts.push('<g id="devNeedle" style="display:none">' +
-    '<polygon class="sv-live" points="' + cx + ',' + (cy - r*0.64) + ' ' + (cx - r*0.085) + ',' + (cy - r*0.34) + ' ' + (cx + r*0.085) + ',' + (cy - r*0.34) + '"/>' +
-    '</g>');
   parts.push('<text x="' + cx + '" y="' + (cy + r + fontSize*0.8) + '" class="sv-muted" font-size="' + (fontSize*0.55) + '" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" text-anchor="middle" opacity="0.65">' + label + '</text>');
 }

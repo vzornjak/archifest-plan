@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Skica — RoomPlan JSON Report</title>
 <!-- ?v= busts the browser cache on every release; bump APP_VERSION in geometry.js to match -->
-<link rel="stylesheet" href="style.css?v=2026-08-07b">
+<link rel="stylesheet" href="style.css?v=2026-08-07c">
 </head>
 <body>
 <div class="sheet">
@@ -38,14 +38,12 @@
         <h2>Tlocrt
           <span class="toggle-wrap"><label class="switch"><input type="checkbox" id="furnToggle"><span class="slider"></span></label>Namještaj</span>
           <span class="toggle-wrap"><label class="switch"><input type="checkbox" id="landToggle"><span class="slider"></span></label>Landscape</span>
-          <button type="button" id="devCompassBtn" class="mini-btn" title="Prikaži trenutnu orijentaciju uređaja u kompasu">🧭</button>
         </h2>
         <svg id="plan-svg" viewBox="0 0 100 100"></svg>
         <div class="legend-row">
           <div class="legend" id="legend"></div>
           <div class="compass-wrap">
             <svg id="compassSvg" width="88" height="102" viewBox="0 0 88 102"></svg>
-            <div id="devDebug" class="compass-debug" style="display:none;"></div>
           </div>
         </div>
       </div>
@@ -94,7 +92,7 @@
   </div>
 </div>
 
-<script src="geometry.js?v=2026-08-07b"></script>
-<script src="app.js?v=2026-08-07b"></script>
+<script src="geometry.js?v=2026-08-07c"></script>
+<script src="app.js?v=2026-08-07c"></script>
 </body>
 </html>
