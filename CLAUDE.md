@@ -350,6 +350,50 @@ zip-level signal is concretely checked, but the owner's real-device tap is
 still what actually confirms it end-to-end. Said so plainly rather than
 claim more than was actually verified.
 
+### Performance: what made the capture screen hot and sluggish
+
+The owner reported the app slow and crashing after the capture redesign.
+Root-caused by auditing what that change introduced (the symptom itself
+can't be reproduced here — it only shows during live capture, which needs a
+LiDAR device). Four real defects, all self-inflicted by the previous commit:
+
+- **`.blur()` on the live `RoomCaptureView` — the main culprit.** Blurring a
+  live AR camera feed forces SwiftUI to rasterize that view into an
+  offscreen buffer *every frame*. On top of RoomPlan's already-heavy LiDAR +
+  ARKit load, that's exactly the "hot and sluggish" profile, and sustained
+  memory-bandwidth pressure like that is also a plausible jetsam kill (which
+  reads as a crash). It bought nothing either: before Start the session
+  isn't running, so there was no camera image to blur. Replaced with a plain
+  opaque scrim. **Don't put `.blur`, `.shadow`, or any offscreen-rendering
+  modifier on a live camera/AR view.**
+- **Hold-progress animation re-rendered the entire screen at 60fps.** The
+  progress value was `@State` on `CaptureScreen`, so animating it 0→1 over
+  2.5–3.5s re-evaluated that whole body — AR view subtree included — every
+  frame, for the length of every hold. Moved into its own small
+  `HoldProgress: ObservableObject` that only the badge observes.
+- **`roomCaptureView.captureSession.delegate = self` stole the delegate
+  `RoomCaptureView` uses internally** to drive its own live wireframe and
+  coaching UI. It was set only to learn when the session became ready, to
+  drive the (now removed) blur — real risk of degrading the capture view for
+  a purely cosmetic detail. Removed along with `isSessionReady`.
+- **Brightness ratchet**: `dimBrightnessSlightly()` stored "the original
+  brightness" on every `onAppear`, so a second appearance stored the
+  already-dimmed value and the screen stepped darker with no way back. Now
+  captured once and cleared on restore.
+
+### Crash: a corrupt `.archifp` used to trap, not throw
+
+Separate from the above, found while auditing: every offset in
+`ArchifestZip.read` comes from *inside the file being parsed*, and `Data`'s
+subscript/`subdata` **trap on an out-of-range index rather than throwing**.
+A truncated or hand-edited archive — entirely possible for a document type
+users can receive from anywhere — was a hard crash, not a catchable error.
+All such reads now go through bounds checks that throw
+`ArchifestZipError.invalidArchive`. Verified with the standalone `swiftc`
+harness: valid and empty archives still read correctly, while four
+truncation points and a corrupted central-directory offset all throw
+cleanly instead of crashing.
+
 ### Still needs a real LiDAR device (not verifiable from this environment)
 
 - **The multi-room `StructureBuilder` merge** — built, compiles, but never run

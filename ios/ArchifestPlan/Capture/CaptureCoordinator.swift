@@ -19,10 +19,6 @@ final class CaptureCoordinator: NSObject, ObservableObject {
   let heading = HeadingReader()
 
   @Published var isCapturing = false
-  /// Flips true once RoomPlan itself confirms the session actually started
-  /// (RoomCaptureSessionDelegate.didStartWith) — the real signal the
-  /// capture screen's blur-until-ready transition waits on, not a guess.
-  @Published var isSessionReady = false
   @Published var isMerging = false
   @Published var errorMessage: String?
   @Published private(set) var capturedRoomCount = 0
@@ -42,7 +38,13 @@ final class CaptureCoordinator: NSObject, ObservableObject {
   override init() {
     super.init()
     roomCaptureView.delegate = self
-    roomCaptureView.captureSession.delegate = self
+    // Deliberately NOT setting `roomCaptureView.captureSession.delegate`:
+    // RoomCaptureView installs itself there to drive its own live wireframe
+    // and coaching UI, so taking that slot means taking it away from the
+    // view. An earlier revision did exactly that, purely to learn when the
+    // session became ready for a start-up blur — a lot of risk for a
+    // cosmetic detail, and the blur itself turned out to be the main
+    // performance problem (see CaptureScreen). Both are gone.
   }
 
   // RoomCaptureViewDelegate : NSCoding (verified against Apple's current
@@ -57,7 +59,6 @@ final class CaptureCoordinator: NSObject, ObservableObject {
 
   func startRoom() {
     if capturedRooms.isEmpty { heading.start() }
-    isSessionReady = false
     var configuration = RoomCaptureSession.Configuration()
     // Already the default — set explicitly so it's not an invisible fact.
     // RoomPlan's own "move closer / slow down" coaching overlay is what
@@ -81,6 +82,7 @@ final class CaptureCoordinator: NSObject, ObservableObject {
   /// remains running across all scans") — not a workaround, the
   /// recommended one.
   func advanceToNextRoom() {
+    guard isCapturing else { return }
     pendingAction = .nextRoom
     roomCaptureView.captureSession.stop(pauseARSession: false)
   }
@@ -89,6 +91,7 @@ final class CaptureCoordinator: NSObject, ObservableObject {
   /// tracking, and moves to merge + report once the room finishes
   /// processing (see `captureView(didPresent:)` below).
   func stopSession() {
+    guard isCapturing else { return }
     pendingAction = .finish
     roomCaptureView.captureSession.stop(pauseARSession: true)
   }
@@ -142,9 +145,6 @@ final class CaptureCoordinator: NSObject, ObservableObject {
 // isolated conformance (`extension ...: @MainActor RoomCaptureViewDelegate`)
 // — that form hit an unrelated NSCoding conformance error from the compiler
 // for this particular @objc protocol; this is the well-established pattern.
-// Applied the same way to RoomCaptureSessionDelegate below for consistency,
-// even though it only inherits AnyObject (checked) and doesn't share that
-// specific issue.
 extension CaptureCoordinator: RoomCaptureViewDelegate {
   nonisolated func captureView(shouldPresent roomDataForProcessing: CapturedRoomData, error: (any Error)?) -> Bool {
     true
@@ -167,17 +167,6 @@ extension CaptureCoordinator: RoomCaptureViewDelegate {
       case .finish:
         self.finishSession()
       }
-    }
-  }
-}
-
-extension CaptureCoordinator: RoomCaptureSessionDelegate {
-  nonisolated func captureSession(
-    _ session: RoomCaptureSession,
-    didStartWith configuration: RoomCaptureSession.Configuration
-  ) {
-    Task { @MainActor in
-      self.isSessionReady = true
     }
   }
 }

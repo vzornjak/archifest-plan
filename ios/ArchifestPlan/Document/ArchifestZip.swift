@@ -135,9 +135,28 @@ enum ArchifestZip {
     let entryCount = Int(readUInt16LE(archive, eocd + 10))
     let centralDirectoryOffset = Int(readUInt32LE(archive, eocd + 16))
 
+    // Every offset below comes from inside the file being read, so a
+    // truncated or hand-edited archive can point anywhere. Data's subscript
+    // and subdata TRAP on an out-of-range index rather than throwing — that
+    // would be a hard crash on a merely corrupt file, which for a document
+    // the user can receive from anywhere is not acceptable. `require`
+    // converts every such read into a thrown, catchable error.
+    func require(_ condition: Bool, _ reason: String) throws {
+      if !condition { throw ArchifestZipError.invalidArchive(reason) }
+    }
+    /// Range must lie entirely within the archive, and not be inverted by an
+    /// absurd length read out of a corrupt header.
+    func requireRange(_ start: Int, _ length: Int, _ what: String) throws {
+      try require(
+        start >= 0 && length >= 0 && start <= archive.count && length <= archive.count - start,
+        "\(what) points outside the file — archive is truncated or corrupt"
+      )
+    }
+
     var result: [String: Data] = [:]
     var p = centralDirectoryOffset
     for _ in 0..<entryCount {
+      try requireRange(p, 46, "central directory entry")
       guard readUInt32LE(archive, p) == 0x0201_4b50 else {
         throw ArchifestZipError.invalidArchive("malformed central directory entry")
       }
@@ -149,18 +168,21 @@ enum ArchifestZip {
       let commentLength = Int(readUInt16LE(archive, p + 32))
       let localHeaderOffset = Int(readUInt32LE(archive, p + 42))
       let nameStart = p + 46
+      try requireRange(nameStart, nameLength, "entry name")
       let name = String(
         data: archive.subdata(in: nameStart..<(nameStart + nameLength)),
         encoding: .utf8
       ) ?? ""
       p = nameStart + nameLength + extraLength + commentLength
 
+      try requireRange(localHeaderOffset, 30, "local file header for \(name)")
       guard readUInt32LE(archive, localHeaderOffset) == 0x0403_4b50 else {
         throw ArchifestZipError.invalidArchive("malformed local file header for \(name)")
       }
       let localNameLength = Int(readUInt16LE(archive, localHeaderOffset + 26))
       let localExtraLength = Int(readUInt16LE(archive, localHeaderOffset + 28))
       let dataStart = localHeaderOffset + 30 + localNameLength + localExtraLength
+      try requireRange(dataStart, compressedSize, "entry data for \(name)")
       let compressedData = archive.subdata(in: dataStart..<(dataStart + compressedSize))
 
       let entryData: Data
