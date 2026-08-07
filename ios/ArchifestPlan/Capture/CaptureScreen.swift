@@ -1,23 +1,22 @@
 // CaptureScreen — the live RoomPlan capture UI.
 //
-// Flow: a Start button (capture begins exactly on that tap, never before
-// it) -> live view with two press-and-hold round buttons (Next/Stop) in the
-// bottom-right quarter of the screen. No tap-then-dialog anywhere: holding
-// Next fills the top room-count badge orange and advances to the next room
-// once fully held; holding Stop fills it red and ends the session — the
-// hold duration itself is the confirmation.
+// Capture starts the moment the screen appears. No Start button, no cover
+// over the camera view, and NO BLUR, MATERIALS, OR BRIGHTNESS CHANGES
+// anywhere — deliberately, all removed at the owner's request after they
+// showed up on a real device. An earlier revision blurred the live
+// RoomCaptureView, which forces SwiftUI to rasterize a live AR camera feed
+// into an offscreen buffer every frame (hot, sluggish). Don't reintroduce
+// `.blur`, `.thinMaterial`, `.shadow`, a full-screen scrim, or
+// screen-brightness manipulation here.
 //
-// NO BLUR, NO MATERIALS, NO BRIGHTNESS CHANGES anywhere in this screen —
-// deliberately. An earlier revision blurred the live RoomCaptureView and
-// dimmed the screen during capture; the blur forced SwiftUI to rasterize a
-// live AR camera feed into an offscreen buffer every frame (hot, sluggish),
-// and both were removed at the owner's request after that showed up on a
-// real device. Plain opaque colors only. Don't reintroduce `.blur`,
-// `.thinMaterial`, `.shadow` or screen-brightness manipulation here.
+// Two press-and-hold round buttons sit in the bottom-right quarter of the
+// screen: holding Next fills the top room-count badge orange and advances
+// to the next room; holding Stop fills it red and ends the session. The
+// hold duration itself is the confirmation — no dialogs.
 //
 // The hold progress lives in its own ObservableObject rather than @State
-// here for the same performance reason: animating it as view state re-ran
-// this whole body — AR view subtree included — at animation framerate.
+// here for performance: animating it as view state re-ran this whole body —
+// AR view subtree included — at animation framerate.
 //
 // No custom "Odustani"/Cancel button — DocumentGroup already gives this
 // screen a system back chevron (it's hosted inside DocumentGroup's own
@@ -42,37 +41,21 @@ struct CaptureScreen: View {
 
   @Environment(\.dismiss) private var dismiss
 
-  private enum PermissionState { case checking, granted, denied }
-  private enum Phase { case checkingPermission, permissionDenied, readyToStart, live, merging }
-
-  @State private var permissionState: PermissionState = .checking
-
-  private var phase: Phase {
-    if coordinator.isMerging { return .merging }
-    if coordinator.isCapturing { return .live }
-    switch permissionState {
-    case .checking: return .checkingPermission
-    case .denied: return .permissionDenied
-    case .granted: return .readyToStart
-    }
-  }
+  @State private var cameraDenied = false
 
   var body: some View {
     ZStack {
       RoomCaptureRepresentable(view: coordinator.roomCaptureView)
         .ignoresSafeArea()
 
-      switch phase {
-      case .checkingPermission:
-        cover { ProgressView("Priprema…").tint(.white) }
-      case .permissionDenied:
-        cover { deniedContent }
-      case .readyToStart:
-        cover { startButton }
-      case .live:
+      if cameraDenied {
+        deniedContent
+      } else if coordinator.isMerging {
+        ProgressView("Obrada snimke…")
+          .tint(.white)
+          .foregroundStyle(.white)
+      } else if coordinator.isCapturing {
         captureControls
-      case .merging:
-        cover { ProgressView("Obrada snimke…").tint(.white) }
       }
     }
     .statusBarHidden()
@@ -87,7 +70,7 @@ struct CaptureScreen: View {
       coordinator.projectName = projectName
       coordinator.onFinished = onFinished
       UIApplication.shared.isIdleTimerDisabled = true
-      Task { await checkPermission() }
+      startIfPermitted()
     }
     .onDisappear {
       coordinator.cancelSession()
@@ -106,16 +89,6 @@ struct CaptureScreen: View {
     }
   }
 
-  /// Plain opaque cover for every non-live state. Deliberately a flat color,
-  /// not a blur or a material — see the note at the top of this file.
-  @ViewBuilder
-  private func cover<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-    ZStack {
-      Color.black.ignoresSafeArea()
-      content().foregroundStyle(.white)
-    }
-  }
-
   private var deniedContent: some View {
     VStack(spacing: 12) {
       Image(systemName: "camera.fill").font(.largeTitle)
@@ -123,22 +96,8 @@ struct CaptureScreen: View {
         .multilineTextAlignment(.center)
         .font(.footnote)
     }
+    .foregroundStyle(.white)
     .padding()
-  }
-
-  private var startButton: some View {
-    // Capture begins exactly here, not before — the state above this is only
-    // ever camera-permission resolution, never RoomPlan quietly running.
-    Button {
-      coordinator.startRoom()
-    } label: {
-      Label("Start", systemImage: "play.fill")
-        .font(.title3.bold())
-        .padding(.horizontal, 32)
-        .padding(.vertical, 14)
-    }
-    .buttonStyle(.borderedProminent)
-    .controlSize(.large)
   }
 
   private var captureControls: some View {
@@ -161,19 +120,16 @@ struct CaptureScreen: View {
     }
   }
 
-  private func checkPermission() async {
+  /// Starts capture straight away. Only an already-denied camera permission
+  /// stops it — the not-yet-asked case doesn't need handling here, because
+  /// starting the session is itself what makes iOS show its own permission
+  /// prompt.
+  private func startIfPermitted() {
     switch AVCaptureDevice.authorizationStatus(for: .video) {
-    case .authorized:
-      permissionState = .granted
-    case .notDetermined:
-      let granted = await withCheckedContinuation { continuation in
-        AVCaptureDevice.requestAccess(for: .video) { granted in
-          continuation.resume(returning: granted)
-        }
-      }
-      permissionState = granted ? .granted : .denied
+    case .denied, .restricted:
+      cameraDenied = true
     default:
-      permissionState = .denied
+      coordinator.startRoom()
     }
   }
 }
