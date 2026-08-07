@@ -101,6 +101,11 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGN_STYLE: Automatic
+        # The owner's own free "Personal Team" (Valentino Zornjak) — without
+        # this, xcodegen wipes whatever Xcode's GUI last set on every
+        # `generate`, and device builds fail with "Signing... requires a
+        # development team" even though Xcode showed it as configured.
+        DEVELOPMENT_TEAM: KT5643BW7L
         ENABLE_PREVIEWS: YES
         GENERATE_INFOPLIST_FILE: NO
         # iCloud is declared here but inert on the current free Personal

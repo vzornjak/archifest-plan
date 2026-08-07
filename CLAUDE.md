@@ -200,14 +200,24 @@ app's own iCloud Drive folder, and able to open a loose `scan.json`/
   document goes straight to `CaptureScreen` (or, where RoomPlan isn't
   supported, the same "Učitaj uzorak" fallback) — no separate "new scan"
   button or name-entry step; that **is** the new-document flow now.
-- **iCloud needs a paid Apple Developer account** — confirmed by research:
-  Apple blocks the iCloud capability outright on a free "Personal Team" (the
-  only kind signed into Xcode in this environment, team `KT5643BW7L`). The
-  entitlements file (`ArchifestPlan.entitlements`) declares it anyway, inert
-  until upgraded; the app still works correctly on-device-only storage until
-  then, confirmed no crash/signing failure building for Simulator with the
-  entitlement present on a free team. See `ios/README.md` for the exact
-  Xcode steps once there's a paid membership.
+- **iCloud needs a paid Apple Developer account — and isn't merely inert on a
+  free one, it breaks signing.** First pass declared the capability in
+  `ArchifestPlan.entitlements` anyway, reasoning it'd stay harmless until
+  upgraded; that was wrong, and the owner hit it directly in Xcode: *"Personal
+  development teams... do not support the iCloud capability... Provisioning
+  profile... doesn't include the com.apple.developer.icloud-container-
+  identifiers... entitlements."* Device builds failed outright, not just
+  "iCloud doesn't work." Fixed by removing the iCloud keys from the
+  entitlements file entirely (exact keys to restore are commented in-file) —
+  confirmed both `xcodebuild ... -destination 'platform=iOS Simulator...'`
+  and, more to the point, `-destination 'generic/platform=iOS'` (the real
+  device-signing path, resolves an actual signing identity + provisioning
+  profile) now succeed clean. `project.yml` also now pins
+  `DEVELOPMENT_TEAM: KT5643BW7L` — without it, `xcodegen generate` silently
+  drops whatever Xcode's GUI last configured, which is what surfaced as
+  "Signing requires a development team" the first time this was checked.
+  See `ios/README.md` for the exact Xcode steps once there's a paid
+  membership.
 - **Confirmed, not just built**: the OS's own LaunchServices/UTI resolution
   correctly identifies the app as owner of `.archifp` (real evidence the
   `UTExportedTypeDeclarations`/`CFBundleDocumentTypes` registration works) —
@@ -230,6 +240,10 @@ app's own iCloud Drive folder, and able to open a loose `scan.json`/
   calibration used).
 - Live capture UX (coaching overlay, session recovery, real-world accuracy).
 - The print button's actual PDF export/share sheet.
+- Actually installing/running on the device — code-signing itself is now
+  confirmed clean (`generic/platform=iOS` build resolves a real signing
+  identity and provisioning profile), but this environment has no physical
+  device attached to install onto.
 
 ## Known, deliberately not fixed
 

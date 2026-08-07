@@ -23,16 +23,41 @@ decisions and what's still unverified.
 
 ## iCloud needs a paid Apple Developer account
 
-`ArchifestPlan.entitlements` declares the iCloud Documents capability so
-scans save into the app's own iCloud Drive folder, matching Numbers. **This
-does nothing on a free "Personal Team"** — confirmed, Apple blocks the iCloud
-capability outright on free accounts, no error, it's just unavailable. To
-actually enable it once there's a paid membership: Xcode → target →
-Signing & Capabilities → confirm "iCloud" is ticked with "iCloud Documents"
-under Services, pick the real Team, and Xcode will provision the
-`iCloud.hr.archifest.plan` container (or generate its own — update the
-entitlements file to match if so). Until then the app works correctly with
-on-device storage only, no crash.
+`ArchifestPlan.entitlements` does **not** declare the iCloud Documents
+capability — it was tried, and it does worse than "nothing" on a free
+"Personal Team": it broke code signing outright. Confirmed directly (the
+owner hit this in Xcode): *"Personal development teams... do not support the
+iCloud capability... Provisioning profile... doesn't include the
+com.apple.developer.icloud-container-identifiers... entitlements."* Unlike
+most capability gates this isn't "inert until you pay," it stops the app
+signing for a device at all — so it's left out entirely for now rather than
+shipped-but-broken.
+
+To turn iCloud Drive saving on once there's a paid Apple Developer Program
+membership, add back to `ArchifestPlan.entitlements` (the file has the exact
+keys commented in, ready to uncomment):
+
+```xml
+<key>com.apple.developer.icloud-container-identifiers</key>
+<array><string>iCloud.hr.archifest.plan</string></array>
+<key>com.apple.developer.icloud-services</key>
+<array><string>CloudDocuments</string></array>
+<key>com.apple.developer.ubiquity-container-identifiers</key>
+<array><string>iCloud.hr.archifest.plan</string></array>
+```
+
+then in Xcode: target → Signing & Capabilities → "+ Capability" → iCloud →
+tick "iCloud Documents" → pick the paid team (Xcode will provision the
+container, or generate its own — match the entitlements file to whichever it
+picks). Until then the app works correctly with on-device storage only.
+
+## The development team
+
+`project.yml` hardcodes `DEVELOPMENT_TEAM: KT5643BW7L` (the owner's free
+Personal Team) so `xcodegen generate` doesn't silently drop whatever Xcode's
+GUI last configured — it did, once, and device builds failed with "Signing
+... requires a development team" even though Xcode's own UI showed a team
+selected. If the team ever changes, update this one line.
 
 ## Build
 
@@ -91,4 +116,10 @@ to go subtly wrong.
   a human tap; `xcrun simctl openurl` routes a `file://` through Safari's
   download flow, which stops at that same tap. Same category of limitation
   as the print button and live RoomPlan capture.
-- Real iCloud sync, for the reason above (no paid account here).
+- Real iCloud sync — not possible at all on the current free team (see
+  above), separate from being merely unverified.
+- Actually running on the owner's device — confirmed it code-signs cleanly
+  now (`xcodebuild ... -destination 'generic/platform=iOS' build` succeeds,
+  real signing identity + provisioning profile resolved), but installing and
+  launching on physical hardware needs the device connected, which this
+  environment doesn't have.

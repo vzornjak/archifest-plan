@@ -170,6 +170,7 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					79B4339424BDEB9A4DF0ABC6 = {
+						DevelopmentTeam = KT5643BW7L;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -322,6 +323,7 @@
 				CODE_SIGN_ENTITLEMENTS = ArchifestPlan/Resources/ArchifestPlan.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = KT5643BW7L;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ArchifestPlan/Resources/Info.plist;
@@ -346,6 +348,7 @@
 				CODE_SIGN_ENTITLEMENTS = ArchifestPlan/Resources/ArchifestPlan.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = KT5643BW7L;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ArchifestPlan/Resources/Info.plist;
