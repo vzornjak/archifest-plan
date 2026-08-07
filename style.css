@@ -51,7 +51,6 @@
   .legend .sw{ display:inline-block; width:12px; height:2px; margin-right:5px; vertical-align:middle; }
   .compass-wrap{ flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:2px; }
   #compassSvg{ flex:0 0 auto; }
-  .compass-debug{ font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; font-size:9.5px; color:var(--ink-dim); text-align:center; white-space:nowrap; letter-spacing:-0.02em; }
 
   .stats{ display:grid; grid-template-columns:repeat(2,1fr); gap:1px; background:var(--rule); border:1px solid var(--rule); border-radius:var(--radius); overflow:hidden; }
   .stat{ background:var(--bg-panel); padding:11px 13px; }
@@ -98,9 +97,6 @@
 
   #furnPanel.hidden-panel{ display:none; }
 
-  .mini-btn{ font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace; font-size:12px; color:var(--ink-dim); background:transparent; border:1px solid var(--ink-faint); border-radius:var(--radius); padding:2px 8px; cursor:pointer; line-height:1.4; }
-  .mini-btn:hover{ border-color:var(--line); color:var(--line-bright); }
-  .mini-btn.active{ border-color:var(--mint); color:var(--mint); }
 
   @media (max-width: 600px){
     body{ padding:8px; }
@@ -122,7 +118,6 @@
   .sv-dimtxt{ fill:#FFB067; }
   .sv-muted{ fill:#7FA0C4; }
   .sv-muted-stroke{ stroke:#7FA0C4; }
-  .sv-live{ stroke:#7FE7C4; fill:#7FE7C4; }
   .lg-wall{ background:#EAF6FF; }
   .lg-slope{ background:#8E9BAB; }
   .lg-open{ background:#FFDDB0; }
@@ -138,7 +133,7 @@
     }
     body{ background:#fff; color:#111; padding:0; }
     .sheet{ border-color:#111; }
-    #dropzone, #printBtn, #status, .toggle-wrap, .mini-btn, .compass-debug{ display:none !important; }
+    #dropzone, #printBtn, #status, .toggle-wrap{ display:none !important; }
     .panel{ background:#fff; border-color:#999; break-inside:avoid; }
     #plan-svg{ background:#fff; }
     .sv-grid{ stroke:#e5e5e5; }
@@ -152,7 +147,6 @@
     .sv-dimtxt{ fill:#333; }
     .sv-muted{ fill:#555; }
     .sv-muted-stroke{ stroke:#555; }
-    .sv-live{ stroke:#0a6b4f; fill:#0a6b4f; }
     .lg-wall{ background:#111; }
     .lg-slope{ background:#888; }
     .lg-open{ background:#b98a3f; }

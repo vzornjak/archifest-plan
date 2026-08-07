@@ -601,27 +601,6 @@ function planOrientation(opts){
   return { rotDeg: norm(-wallAngle + (landscape ? 0 : 90)), landscape, auto: override == null };
 }
 
-// Screen angle (clockwise from the top) at which to draw the live compass
-// needle so it points at TRUE NORTH as seen from the device — a real compass
-// needle: face north and it points up, face east and it swings left.
-//
-// It is deliberately independent of how the plan is rotated. Drawing it at
-// roseDeg + heading instead (where north sits on the DRAWING) looks identical
-// whenever the plan happens to be near north-up, which is why that error
-// survived in Landscape (rose 357°) and only showed up in Portrait, where the
-// plan is rotated ~93° and facing north pointed the needle physically west.
-//
-// NEEDLE_OFFSET_DEG is physically calibrated, not derived. Observed on the
-// test device with the plan and the rose both confirmed correct at the time:
-// the needle sat on true SOUTH, exactly half a circle out. The turning sense
-// was already right (turn right, needle swings left), so only this constant
-// changed. It is the single knob for this — if a future device needs it, flip
-// it here rather than reworking the formula.
-const NEEDLE_OFFSET_DEG = 180;
-function needleAngleFrom(headingDeg){
-  return ((360 - headingDeg + NEEDLE_OFFSET_DEG) % 360 + 360) % 360;
-}
-
 function sum(arr, fn){ return arr.reduce((a, x) => a + fn(x), 0); }
 
 function fmt(n){ if (n === null || n === undefined || isNaN(n)) return '—'; return n.toFixed(2); }
@@ -632,7 +611,7 @@ function fmtArea(n){ if (n === null || n === undefined || isNaN(n)) return '—'
 // Bump together with the ?v= query strings in index.html when shipping —
 // mobile Safari otherwise keeps serving stale JS after a deploy, which has
 // repeatedly led to fixes being tested against old code.
-const APP_VERSION = '2026-08-07b';
+const APP_VERSION = '2026-08-07c';
 
 const APPLE_EPOCH_MS = 978307200000; // 2001-01-01 UTC — Apple/Core Data reference date
 
@@ -642,7 +621,7 @@ if (typeof module !== 'undefined' && module.exports) {
     esc, unwrap, shoelace2D, reshapeMatrix, localToWorld, computeArea,
     topProfile, topEdgeSloped, profileLength, wallSegment, furnitureRect,
     floorPolygon, CONF_LEVELS, annotate, buildData, catLabel, wallNetArea,
-    reconstructCeilingForRoom, reconstructCeiling, northBearingFrom, planOrientation, needleAngleFrom, NEEDLE_OFFSET_DEG,
+    reconstructCeilingForRoom, reconstructCeiling, northBearingFrom, planOrientation,
     sum, fmt, fmtArea, APPLE_EPOCH_MS, APP_VERSION, HEADING_OFFSET_DEG,
     segmentRooms, zoneIdAt, classifyZone, furnitureByZone, wallsByZone,
     OBJECT_VOTES, ZONE_LABELS_HR,

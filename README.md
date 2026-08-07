@@ -12,7 +12,7 @@ Alat koji iz RoomPlan (LiDAR) JSON skeniranja prostorije generira tehnički izvj
   - Rekonstruira površinu stropa iz profila kosih zidova (podržava proizvoljan broj kosina po zidu)
   - Detektira zidove s kosinom (`polygonCorners`) i prikazuje kut/dimenzije kosine
 - Crta arhitektonski tlocrt (SVG) — uvijek ravan, poravnat s najdužim zidom; Portrait/Landscape prekidač bira orijentaciju (auto prema panelu, reagira odmah na fizičku rotaciju ekrana kad nije ručno postavljen). Kad je sjever poznat, između dvije jednako ravne 180°-rotirane varijante bira se ona gdje je sjever bliže gore. Sjever pokazuje kompasna ruža u legendi
-- Kompasna ruža (krug, oznake stupnjeva, N/E/S/W) u legendi ispod tlocrta; 🧭 gumb uz dopuštenje prikazuje malu živu strelicu koja pokazuje **pravi sjever u odnosu na uređaj** (kao pravi kompas — gledaš na sjever, strelica gore), neovisno o rotaciji tlocrta (smjer i pomak kalibrirani fizičkom provjerom u prostoriji). Uz kompenzaciju fizičke rotacije ekrana i dijagnostičke brojke za kalibraciju
+- Kompasna ruža (krug, oznake stupnjeva, N/E/S/W) u legendi ispod tlocrta — pokazuje pravi sjever kad je poznat iz `meta.json`, inače pretpostavljeni
 - Vrata s klasičnim simbolom otvaranja (krilo + luk) — strana šarke je konvencija jer sken bilježi samo isOpen; kosi dio zida označen sivo samo na stvarnom rasponu kosine
 - Panel "Podaci o skenu" iz meta.json: naziv, datum, koordinate, adresa (OpenStreetMap Nominatim reverse geocoding) + link na Apple Maps
 - **Segmentacija i klasifikacija soba** (bez Polycam pretplate) — raw RoomPlan JSON daje samo grube `sections` točke, ne prave granice soba. Alat sam rasterizira pod u finu mrežu i flood-fill pronalazi povezane prostorije (bez vanjske geometrijske biblioteke), zatim ih klasificira glasanjem po tipu namještaja (Kuhinja/Kupaonica/Spavaća/Dnevni boravak/Praonica/Hodnik/Ormar) s geometrijskim vetoima. Panel "Zone / Prostorije" prikazuje po sobi: površinu poda, popis namještaja, i **tablicu zidova s površinama** — dijeljeni zid između dvije sobe ulazi punom površinom u OBJE (svaka strana treba svoj premaz), dok ukupni bruto/neto zbroj u Pregledu ostaje kao dosad (jednom po zidu)
@@ -28,7 +28,7 @@ Otvori `index.html` u browseru (ili preko GitHub Pages linka), ubaci `.json` faj
 - `index.html` — samo markup
 - `style.css` — sav CSS (ekranska tema + print paleta)
 - `geometry.js` — čista logika (parsiranje, geometrija, površine, sjever) bez DOM-a; radi i u Nodeu
-- `app.js` — DOM, renderiranje izvještaja i SVG tlocrta, kompas, živi kompas uređaja
+- `app.js` — DOM, renderiranje izvještaja i SVG tlocrta, kompasna ruža
 
 I dalje bez build koraka — GitHub Pages servira fajlove kakvi jesu, a alat radi i otvoren direktno s diska (`index.html`).
 
