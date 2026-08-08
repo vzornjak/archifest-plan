@@ -419,6 +419,30 @@ harness: valid and empty archives still read correctly, while four
 truncation points and a corrupted central-directory offset all throw
 cleanly instead of crashing.
 
+### The Swift migration starts here (plan drawing)
+
+The owner has decided to move the app to Swift over time and chose the plan
+drawing as the first step. **This knowingly breaks the "one engine" rule for
+the plan maths**: `PlanGeometry.swift` is a direct port of `wallSegment`,
+`floorPolygon`, `planOrientation` and `northBearingFrom` from `geometry.js`,
+and both now exist. That is an accepted transitional cost, not an oversight
+— but until the web report is retired, **a change to the drawing maths has
+to be made in both places**. `HEADING_OFFSET_DEG` especially: it's the
+empirically calibrated constant that's still unverified against RoomPlan's
+own heading convention, and it must not be "fixed" in one engine alone.
+
+`PlanView.swift` draws it (SwiftUI `Canvas`) over `BlueprintBackground`, the
+backdrop the owner wrote. Two deliberate departures from the web plan, both
+asked for: **no dimension lines**, and **doors as dotted marks in the plane
+of the wall** rather than the leaf-and-swing-arc symbol. The swing side was
+always a drawing convention anyway — the scan records only `isOpen` — so
+dropping it removes an invented detail rather than real information. No
+furniture either, since the only current consumer is the thumbnail.
+
+Scope for now is exactly the thumbnail; the in-app report is still the web
+one. Verified by rendering the bundled fixture natively in Simulator and
+comparing against the web plan — same rooms, same wall positions.
+
 ### Document thumbnails: the plan, portrait, without dimensions
 
 The owner asked for `.archifp` files to show their floor plan in the
@@ -428,13 +452,13 @@ and with no dimension lines ("bez kota").
 
 Two pieces:
 
-- **`PlanThumbnailRenderer`** (app target) renders the plan once, when a scan
-  finishes, into a portrait PNG stored inside the `.archifp` as `plan.png`.
-  It drives the *real* report in an offscreen `WKWebView` — so the picture
-  comes from `app.js`, not a second drawing implementation — then hides
-  everything around the plan (title block, other panels, legend, and
-  `#plan-svg .sv-dim`/`.sv-dimtxt` for the dimensions), forces the portrait
-  toggle, and snapshots just the plan.
+- **`PlanThumbnailRenderer`** (app target) rasterises `PlanView` with
+  `ImageRenderer` into a portrait PNG stored inside the `.archifp` as
+  `plan.png`. It originally drove the real web report in an offscreen
+  `WKWebView` and snapshotted the SVG out of it; that worked, but the three
+  traps below are all failure modes of *that* approach, and drawing natively
+  removed every one of them. They're kept on record because the WKWebView
+  snapshot trick is an obvious thing to reach for again.
 - **`ThumbnailProvider`** (new app-extension target) does no drawing at all:
   it unzips `plan.png` and hands it back. That keeps it far inside the tight
   time/memory budget a Quick Look thumbnail extension gets. `ArchifestZip.swift`

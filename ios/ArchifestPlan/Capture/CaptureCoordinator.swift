@@ -139,7 +139,7 @@ final class CaptureCoordinator: NSObject, ObservableObject {
         // scan already has its thumbnail the moment it lands in the browser.
         // Returns nil on failure rather than throwing — a missing tile is
         // cosmetic and must never cost the user their scan.
-        let planImage = await PlanThumbnailRenderer.render(scanJSON: payload, metaJSON: metaData)
+        let planImage = PlanThumbnailRenderer.render(scanJSON: payload, metaJSON: metaData)
         self.isMerging = false
         self.onFinished?(payload, metaData, planImage, name.isEmpty ? "snimka" : name)
       } catch {

@@ -15,6 +15,7 @@
 		3114B39E34A8867A1D67CF7D /* CaptureCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4471CBF485BBC71400BA7FC /* CaptureCoordinator.swift */; };
 		5D21C6A79CE1E4B0918088DC /* CaptureScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ECC28E7582743C40860A980 /* CaptureScreen.swift */; };
 		62D948CD6E6E02736A25C2FA /* ArchifestEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DF77C993B6A863E1F231264 /* ArchifestEntry.swift */; };
+		65283C1E40EB3DE9353575E3 /* PlanGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3A4E4A66474CA98B68EC0A /* PlanGeometry.swift */; };
 		69A4F6FFCA1E848E603C1A59 /* PlanThumbnailRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 093EAE4BB996CE5A4D1A3357 /* PlanThumbnailRenderer.swift */; };
 		6ABF2BFFE67EBD9DA1186BA2 /* sample-scan-meta.json in Resources */ = {isa = PBXBuildFile; fileRef = 2B629790D9F4578974257536 /* sample-scan-meta.json */; };
 		6E5D92B927103F23F9E7F5CC /* ArchifestZip.swift in Sources */ = {isa = PBXBuildFile; fileRef = B945629B8F5C18C28759EBBD /* ArchifestZip.swift */; };
@@ -30,6 +31,7 @@
 		E77C56C7474103056D1D157E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8C85A35BDBF20CC3096169D2 /* Assets.xcassets */; };
 		EC5B93581411FB2A370EC421 /* ArchifestDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC559C5B334895D63A41059E /* ArchifestDocument.swift */; };
 		F3C168628CEDB50F5EB57C93 /* ArchifestDocumentScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B70E41298DB6F8783F6C320 /* ArchifestDocumentScene.swift */; };
+		FC6A27A792251ED908240E62 /* PlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 019041A9097B79522C0351DF /* PlanView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,6 +59,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		019041A9097B79522C0351DF /* PlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanView.swift; sourceTree = "<group>"; };
 		024C9A24D440180901965D5D /* ScanExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanExport.swift; sourceTree = "<group>"; };
 		03EB1D5BEA565B8270DBD1F2 /* ToolbarModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarModifiers.swift; sourceTree = "<group>"; };
 		093EAE4BB996CE5A4D1A3357 /* PlanThumbnailRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanThumbnailRenderer.swift; sourceTree = "<group>"; };
@@ -64,6 +67,7 @@
 		279045E9861EBAE68F41E1F1 /* HeadingReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadingReader.swift; sourceTree = "<group>"; };
 		2B629790D9F4578974257536 /* sample-scan-meta.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "sample-scan-meta.json"; sourceTree = "<group>"; };
 		3DF77C993B6A863E1F231264 /* ArchifestEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchifestEntry.swift; sourceTree = "<group>"; };
+		3F3A4E4A66474CA98B68EC0A /* PlanGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanGeometry.swift; sourceTree = "<group>"; };
 		48D9375AC02944478C28798A /* ReportScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportScreen.swift; sourceTree = "<group>"; };
 		539F84A6D01C8A0806A5D2C3 /* ReportWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportWebView.swift; sourceTree = "<group>"; };
 		59820D412309E0E8AB49394C /* RoomCaptureRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomCaptureRepresentable.swift; sourceTree = "<group>"; };
@@ -147,6 +151,15 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		4901CA8BAC6FA1EA703D4505 /* Plan */ = {
+			isa = PBXGroup;
+			children = (
+				3F3A4E4A66474CA98B68EC0A /* PlanGeometry.swift */,
+				019041A9097B79522C0351DF /* PlanView.swift */,
+			);
+			path = Plan;
+			sourceTree = "<group>";
+		};
 		4F2D7291273CF2D43FD5618E /* Resources */ = {
 			isa = PBXGroup;
 			children = (
@@ -184,6 +197,7 @@
 				FFEAAECF79E266B3CED15118 /* Document */,
 				2B8825AE7FFE680DDC091279 /* Fixtures */,
 				08FCCC827EB06464C085C754 /* Models */,
+				4901CA8BAC6FA1EA703D4505 /* Plan */,
 				0D652E2A51FE4980ABA0195D /* Report */,
 				4F2D7291273CF2D43FD5618E /* Resources */,
 			);
@@ -346,7 +360,9 @@
 				3114B39E34A8867A1D67CF7D /* CaptureCoordinator.swift in Sources */,
 				5D21C6A79CE1E4B0918088DC /* CaptureScreen.swift in Sources */,
 				9B4A99598096951D26A6DE13 /* HeadingReader.swift in Sources */,
+				65283C1E40EB3DE9353575E3 /* PlanGeometry.swift in Sources */,
 				69A4F6FFCA1E848E603C1A59 /* PlanThumbnailRenderer.swift in Sources */,
+				FC6A27A792251ED908240E62 /* PlanView.swift in Sources */,
 				88770C2AD4BE193D7708B01D /* ReportScreen.swift in Sources */,
 				AFEC6BF0CEA4B86863E3A4E8 /* ReportWebView.swift in Sources */,
 				828B2C480F3231A1D5DB5072 /* RoomCaptureRepresentable.swift in Sources */,

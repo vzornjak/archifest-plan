@@ -30,6 +30,7 @@ targets:
       - path: ArchifestPlan/Report
       - path: ArchifestPlan/Models
       - path: ArchifestPlan/Document
+      - path: ArchifestPlan/Plan
       - path: Shared
       - path: ArchifestPlan/Resources/Assets.xcassets
         buildPhase: resources
