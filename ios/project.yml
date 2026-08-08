@@ -81,10 +81,24 @@ targets:
         UTExportedTypeDeclarations:
           - UTTypeIdentifier: hr.archifest.plan.document
             UTTypeDescription: "ARCHIFEST Plan snimka"
-            # Really is a zip (ArchifestZip.swift) — a person can rename
-            # .archifp to .zip and open it with any unzip tool, as asked.
+            # Conforms to composite-content, NOT public.zip-archive — even
+            # though the bytes really are a zip.
+            #
+            # Declaring zip-archive conformance told the whole system "this
+            # IS an archive", and it behaved accordingly: Files unzipped the
+            # file on tap instead of opening the app, and archive handling
+            # preempted our thumbnail extension, so the tile went blank.
+            # Checked how Apple does it rather than guessing — .numbers,
+            # .pages and .key are all zips internally too, and every one of
+            # them conforms to public.composite-content with no archive
+            # conformance at all (verified with UTType on this machine).
+            #
+            # The file itself is unchanged: still a real zip, so renaming it
+            # to .zip and opening it with any unzip tool still works, which
+            # is what was asked for. Only the declared type changes.
             UTTypeConformsTo:
-              - public.zip-archive
+              - public.composite-content
+              - public.data
             UTTypeTagSpecification:
               public.filename-extension:
                 - archifp

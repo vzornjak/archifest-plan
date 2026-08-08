@@ -23,6 +23,7 @@ final class ThumbnailProvider: QLThumbnailProvider {
     _ handler: @escaping (QLThumbnailReply?, (any Error)?) -> Void
   ) {
     guard let image = Self.planImage(at: request.fileURL) else {
+      Self.log.error("no plan image -> returning nil thumbnail")
       // No stored plan (a scan saved before thumbnails existed, or one whose
       // render failed). Returning nil is the documented way to say "no
       // thumbnail" — the system falls back to the generic document icon
@@ -35,10 +36,15 @@ final class ThumbnailProvider: QLThumbnailProvider {
     let scale = min(target.width / image.size.width, target.height / image.size.height)
     let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
 
-    handler(QLThumbnailReply(contextSize: size) { context in
+    // `currentContextDrawing:`, NOT `drawing:`. The `drawing:` variant hands
+    // you a raw CGContext and sets up *no* current UIGraphics context, so
+    // UIKit drawing calls like UIImage.draw(in:) silently do nothing — which
+    // is precisely how this shipped a blank tile while every log line said
+    // the image had been found and decoded correctly.
+    handler(QLThumbnailReply(contextSize: size, currentContextDrawing: {
       image.draw(in: CGRect(origin: .zero, size: size))
       return true
-    }, nil)
+    }), nil)
   }
 
   private static func planImage(at url: URL) -> UIImage? {
@@ -49,7 +55,10 @@ final class ThumbnailProvider: QLThumbnailProvider {
 
     do {
       let entries = try ArchifestZip.read(from: url)
-      guard let data = entries[ArchifestEntry.planImage] else { return nil }
+      guard let data = entries[ArchifestEntry.planImage] else {
+        Self.log.error("archive has no \(ArchifestEntry.planImage, privacy: .public)")
+        return nil
+      }
       return UIImage(data: data)
     } catch {
       log.error("could not read plan image: \(error.localizedDescription, privacy: .public)")

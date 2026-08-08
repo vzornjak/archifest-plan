@@ -419,6 +419,40 @@ harness: valid and empty archives still read correctly, while four
 truncation points and a corrupted central-directory offset all throw
 cleanly instead of crashing.
 
+### Two Files-app bugs, both from a wrong declaration rather than wrong code
+
+The owner reported `.archifp` files showing a **blank tile** in Files (not
+even the generic icon they used to get), and Files **unzipping** the file on
+tap instead of opening the app — "Numbers wouldn't behave like that."
+
+Both had concrete, verifiable causes, and both were reproduced in Simulator
+first (place a `.archifp` in the app's Documents, then
+`xcrun simctl openurl "shareddocuments://<container>/Documents"` — that
+navigates Files straight to the folder without needing taps, which is what
+made this debuggable at all):
+
+1. **`UTTypeConformsTo: public.zip-archive` was the wrong declaration.** It
+   told the whole system the file *is* an archive, so Files did archive
+   things with it — decompress on tap — and archive handling preempted the
+   thumbnail extension. Checked how Apple does it instead of guessing:
+   `.numbers`, `.pages` and `.key` are all zips internally too, and every one
+   conforms to `public.composite-content`, with **no** archive conformance
+   (verified by querying `UTType` on this machine). Changed to match. The
+   bytes are untouched — still a real zip, still openable by renaming to
+   `.zip`, which is what was asked for; only the declared type changed.
+
+2. **`QLThumbnailReply(contextSize:drawing:)` silently drew nothing.** That
+   initializer hands you a raw `CGContext` and sets up **no current
+   UIGraphics context**, so `UIImage.draw(in:)` — a UIKit call that needs
+   one — did nothing at all, with no error anywhere. The extension was
+   running correctly the whole time: logging showed it launched, read the
+   archive, and decoded the image, and still the tile was blank. Use
+   `init(contextSize:currentContextDrawing:)` for UIKit drawing.
+
+Confirmed fixed with a before/after visible in a single screenshot: a file
+written after the fix shows its plan, while the previously-cached ones stay
+blank (thumbnails cache per file, so each test needs a fresh filename).
+
 ### The Swift migration starts here (plan drawing)
 
 The owner has decided to move the app to Swift over time and chose the plan
