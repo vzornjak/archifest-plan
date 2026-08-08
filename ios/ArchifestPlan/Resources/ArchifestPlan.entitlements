@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- iCloud (CloudDocuments + the icloud-container-identifiers /
+	     ubiquity-container-identifiers keys) is deliberately NOT declared
+	     here. It was, briefly — and broke code signing outright: Apple
+	     rejects a provisioning profile for ANY app ID that requests the
+	     iCloud capability on a free "Personal Team" ("Cannot create an iOS
+	     App Development provisioning profile... Personal development teams
+	     ...do not support the iCloud capability"), confirmed by the owner
+	     hitting exactly that in Xcode. Unlike most capability mismatches
+	     this isn't "inert until you pay" — it stops the app from signing
+	     for a real device at all, so it cannot ship even declared-but-inert.
+
+	     To turn iCloud Drive saving back on once there's a paid Apple
+	     Developer Program membership: add back
+
+	       <key>com.apple.developer.icloud-container-identifiers</key>
+	       <array><string>iCloud.hr.archifest.plan</string></array>
+	       <key>com.apple.developer.icloud-services</key>
+	       <array><string>CloudDocuments</string></array>
+	       <key>com.apple.developer.ubiquity-container-identifiers</key>
+	       <array><string>iCloud.hr.archifest.plan</string></array>
+
+	     then in Xcode: target -> Signing & Capabilities -> "+ Capability"
+	     -> iCloud -> tick "iCloud Documents" -> pick the paid team. See
+	     ios/README.md. -->
+</dict>
+</plist>

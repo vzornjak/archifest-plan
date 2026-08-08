@@ -130,9 +130,10 @@ open:
   — verified against Apple's current docs at implementation time, not memory.
   `CapturedStructure` has its own top-level `rooms: [CapturedRoom]`, so
   encoding it directly is already the shape `geometry.js` reads.
-- **Deployment target is iOS 17.0**, chosen for `StructureBuilder`. No real
-  cost: every LiDAR-capable device (iPhone 12 Pro+, iPad Pro 2020+) already
-  supports iOS 17+.
+- **Deployment target is iOS 18.0.** Originally 17.0 (chosen for
+  `StructureBuilder`), raised to 18.0 for `DocumentGroupLaunchScene` (the
+  blueprint launch background, below). No real cost either way: every
+  LiDAR-capable device (iPhone 12 Pro+, iPad Pro 2020+) already runs iOS 18+.
 - `RoomCaptureViewDelegate` unexpectedly inherits from **`NSCoding`**
   (confirmed against Apple's docs, still surprising for a delegate protocol)
   — a conforming type needs `init?(coder:)`/`encode(with:)` stubs, and under
@@ -156,11 +157,335 @@ open:
   MIT; Apple's sample carries its own licence and copying it makes that claim
   untrue.
 - **RoomPlan does not run in the Simulator** (`RoomCaptureSession.isSupported`
-  is false there — confirmed, `HomeView` correctly shows the "not supported"
-  message instead of a broken capture button). Everything else is tested in
-  the Simulator against the bundled synthetic fixture in `ios/**/Fixtures/`.
+  is false there — confirmed, `ArchifestDocumentScene` correctly shows the
+  "not supported" message instead of a broken capture button). Everything
+  else is tested in the Simulator against the bundled synthetic fixture in
+  `ios/**/Fixtures/`.
 - Simulator needs no code signing. An Apple ID is only needed for device
   deployment, a paid account only for the App Store.
+
+### Document-based app: own file format, iCloud folder, opens other files
+
+Owner asked (pointing at Numbers as the reference) for scans to become real,
+named files — browsable/reopenable from a history screen, saved into the
+app's own iCloud Drive folder, and able to open a loose `scan.json`/
+`meta.json` too. Built:
+
+- **`.archifp` is a real zip**, not an Apple-style file package — asked for
+  explicitly (renaming it to `.zip` and opening with any unzip tool must
+  work). iOS has **no public API to write a real zip** (confirmed by
+  research — even Files app's own "Compress" uses a private framework
+  third-party apps can't call), so `ArchifestZip.swift` hand-rolls a minimal
+  reader/writer instead of adding a dependency — this project's "no
+  dependencies" rule is a hard rule for the web app and the owner explicitly
+  chose to keep it for iOS too, over the convenience of a library like
+  ZIPFoundation. Deliberately narrow scope: store only (no DEFLATE — these
+  files are a few KB, compression isn't worth the risk of subtly wrong raw-
+  deflate framing), a handful of named entries, no Zip64/encryption. Verified
+  independent of Xcode: compiles as a plain `swiftc` command-line tool
+  (needs nothing iOS-only), round-tripped against macOS's real `zip`/`unzip`
+  CLI both directions, plus a corrupted-archive and a DEFLATE-entry-rejection
+  case (confirms it fails loud, not silently, on input outside its scope).
+- **`ArchifestDocument: FileDocument`** handles both the app's own
+  `hr.archifest.plan.document` UTType and plain `public.json` (a loose
+  scan/meta file) in one type — classifies loose json by shape, the same
+  rule `app.js`'s `isMeta()` (app.js:72) uses. Tracks its own source kind so
+  a document opened from a loose `.json` is never rewritten into a zip on
+  save — defensive, since nothing in the app actually edits a document in
+  place anyway.
+- **App root is `DocumentGroup`, not `WindowGroup`** — `HomeView.swift` is
+  gone. The system's own document browser (its "+" and file grid) replaces
+  it entirely; confirmed in Simulator it renders correctly, in Croatian,
+  visually matching the Numbers reference the owner pointed at ("Izradi
+  dokument" / "Povijest" / "Bez nedavnih stavki"). A freshly-created empty
+  document goes straight to `CaptureScreen` (or, where RoomPlan isn't
+  supported, the same "Učitaj uzorak" fallback) — no separate "new scan"
+  button or name-entry step; that **is** the new-document flow now.
+- **Blueprint launch background.** The owner asked for artwork on that launch
+  screen (pointing at Numbers again). `DocumentGroup` on iOS 17 has no public
+  background hook; iOS 18's `DocumentGroupLaunchScene` does (`background:` +
+  the default actions), which is why the deployment target was raised to 18.
+  The backdrop is drawn in pure SwiftUI (`BlueprintBackground.swift`, a
+  `Canvas`), **not** an image asset — chosen over dropping in the owner's
+  Gemini PNG so it scales to any screen, stays in the "no dependencies /
+  tunable in code" spirit, and can be kept deliberately pale (the owner asked
+  for it "a touch lighter") so the system's title/buttons/recent-grid stay
+  legible on top. `#Preview`-verified in Xcode; the live launch screen still
+  needs a device/Simulator run to confirm the system UI composites over it as
+  expected.
+- **iCloud needs a paid Apple Developer account — and isn't merely inert on a
+  free one, it breaks signing.** First pass declared the capability in
+  `ArchifestPlan.entitlements` anyway, reasoning it'd stay harmless until
+  upgraded; that was wrong, and the owner hit it directly in Xcode: *"Personal
+  development teams... do not support the iCloud capability... Provisioning
+  profile... doesn't include the com.apple.developer.icloud-container-
+  identifiers... entitlements."* Device builds failed outright, not just
+  "iCloud doesn't work." Fixed by removing the iCloud keys from the
+  entitlements file entirely (exact keys to restore are commented in-file) —
+  confirmed both `xcodebuild ... -destination 'platform=iOS Simulator...'`
+  and, more to the point, `-destination 'generic/platform=iOS'` (the real
+  device-signing path, resolves an actual signing identity + provisioning
+  profile) now succeed clean. `project.yml` also now pins
+  `DEVELOPMENT_TEAM: KT5643BW7L` — without it, `xcodegen generate` silently
+  drops whatever Xcode's GUI last configured, which is what surfaced as
+  "Signing requires a development team" the first time this was checked.
+  See `ios/README.md` for the exact Xcode steps once there's a paid
+  membership.
+- **Confirmed, not just built**: the OS's own LaunchServices/UTI resolution
+  correctly identifies the app as owner of `.archifp` (real evidence the
+  `UTExportedTypeDeclarations`/`CFBundleDocumentTypes` registration works) —
+  `xcrun simctl openurl` on a `file://` URL routed it through Safari's
+  download flow and staged it into the app's own `Documents/Inbox`. What
+  that **can't** confirm without a human tap: the final "Open in ARCHIFEST
+  Plan" hand-off that would actually exercise
+  `ArchifestDocument.init(configuration:)` live. Same category of gap as the
+  print button and live RoomPlan capture — flagged, not assumed working.
+
+### What RoomPlan actually lets you configure
+
+Asked to check for scan-processing options (beautify, wall straightening,
+corner alignment, noise cleanup, "more detailed model"). Checked the
+complete public member lists, not guessed:
+
+- **`RoomBuilder.ConfigurationOptions`** (also what `StructureBuilder`'s
+  `options:` takes) has exactly **one** case: `.beautifyObjects` —
+  furniture only ("realigns chairs around a table"). Already used in
+  `CaptureCoordinator.finishSession()`.
+- **Wall straightening, corner alignment, noise cleanup are not
+  configurable at all** — not a missing toggle, there genuinely isn't one.
+  `RoomCaptureSession.Configuration`'s only member besides `init()` is
+  `isCoachingEnabled: Bool` (now set explicitly, though `true` was already
+  the default). Nothing sets mesh/scan detail level either. This is simply
+  the entire configurable surface RoomPlan exposes.
+- **Multi-room, without losing AR tracking between rooms**:
+  `RoomCaptureSession.stop(pauseARSession: false)` ends the current room's
+  capture but leaves the underlying `ARSession` running, so walking through
+  a doorway into the next room stays in the same coordinate space. This is
+  Apple's own documented technique (WWDC23, "Explore enhancements to
+  RoomPlan", session 10192), not a workaround — confirmed before building
+  `CaptureCoordinator.advanceToNextRoom()`/`stopSession()` around it.
+- **No pause/resume of an in-progress room capture exists** —
+  `RoomCaptureSession`'s complete method list is `run`/`stop`/
+  `stop(pauseARSession:)`, checked directly. A "Pause" button was considered
+  and dropped for exactly this reason (owner's call, after seeing there was
+  nothing real for it to control).
+- **`RoomCaptureView`'s post-scan 3D review is opt-out, and we opt out.**
+  Returning `true` from `captureView(shouldPresent:error:)` — the default,
+  and what this app did at first — makes the view "display the scanned room
+  in a 3D rendition that the user can inspect using touch gestures" every
+  time a room ends. That fought the whole point of the Next button (walk
+  through a doorway, keep going) and added a step before the report on Stop.
+  We return **`false`** now. The trade: `captureView(didPresent:)` is then
+  never called, so the raw `CapturedRoomData` is processed by us via
+  `RoomBuilder(options:).capturedRoom(from:)` (iOS 16+, async throws) —
+  Apple's documented path for exactly this case, not a workaround. Bonus on
+  Next: the finished room builds in the background while the next room is
+  already being captured, so there's no wait at the doorway.
+
+### Capture controls: hold-to-confirm Next/Stop, not tap-then-dialog
+
+Replaced the old "Gotovo" button + confirmation-dialog flow. Now:
+`CaptureScreen` shows two round buttons (Next, Stop) in the bottom-right
+quarter of the screen, each requiring a **press-and-hold** — holding Next
+fills the top room-count badge orange over ~2.5s and advances to the next
+room; holding Stop fills it red over ~3.5s and ends the session. No SwiftUI
+primitive does hold-with-progress, so it's hand-built (`HoldButton` in
+`CaptureScreen.swift`): a `DragGesture(minimumDistance: 0)` for immediate
+touch-down detection, a `withAnimation(.linear(duration:))` driving the
+visual fill, and a parallel `Task.sleep` of the same duration — cancelled on
+early release — deciding whether the hold actually completed.
+
+Also: capture no longer starts the instant the screen appears. It now
+blurs while camera permission is resolved, reveals an explicit **Start**
+button, and `coordinator.startRoom()` is called only on that tap — real
+capture data never collects before the user consciously starts it. A second
+brief blur covers the gap between the Start tap and RoomPlan's own
+`RoomCaptureSessionDelegate.didStartWith` callback (`isSessionReady`).
+`UIApplication.isIdleTimerDisabled` is set while the screen is visible so
+the screen never auto-locks mid-scan; screen brightness is dimmed modestly
+and restored on disappear — worth being honest that this only helps a
+little, the dominant heat/battery cost of a RoomPlan scan is the LiDAR
+sensor and ARKit/ML processing, not the backlight.
+
+### Navigation chrome: DocumentGroup already provides one bar, don't add a second
+
+Real bug, found by the owner: opening a report showed **two** stacked
+navigation bars. Root cause — `DocumentGroup` wraps its editor content in a
+navigation bar of its own (confirmed, documented behavior, not a bug in
+DocumentGroup); `ReportScreen` was *also* wrapping in its own
+`NavigationStack` with its own title/toolbar. Fixed by removing that inner
+`NavigationStack` entirely from both `ReportScreen` and `CaptureScreen` —
+`.navigationTitle`/`.toolbar` applied directly now attach to DocumentGroup's
+one real bar. The "Zatvori" and "Odustani" buttons are gone with it — the
+system-provided back chevron in that single bar already does both (leaving
+`CaptureScreen` via any means — chevron tap, edge-swipe — triggers
+`.onDisappear`, which calls `cancelSession()`, guarded so it's a no-op if
+`stopSession()` already ran cleanly). The room-count badge moved into that
+same toolbar too, so it gets the native iOS 26 Liquid Glass toolbar styling
+for free instead of a hand-rolled `.thinMaterial` capsule approximating it.
+
+Also added there: a trailing (`.primaryAction` — the standard far-right
+slot) Share menu with two options — the real `.archifp` file
+(`ShareLink(item:)` off `FileDocumentConfiguration.fileURL`, which `URL`
+supports natively) and a PDF, which reuses `ReportWebView`'s existing,
+already-working `exportAndSharePDF` pipeline via a second trigger path
+(`pdfExportTrigger` binding) rather than a separate implementation. The
+in-report "Ispis / PDF" button is unchanged, still calls the same code.
+
+### Bug fixed: opening a file with no scan data used to auto-launch capture
+
+`ArchifestDocumentScene` branched only on `document.scan == nil` to decide
+whether to show the capture flow — but `scan` is `nil` for two unrelated
+reasons: a genuinely new empty document (correct to capture), *and* an
+**opened existing file that just has no scan data** (a standalone
+`meta.json` shared without its `scan.json`, or a broken `.archifp`) — both
+looked identical to that one `if`, so opening either silently started
+RoomPlan. Fixed by branching on `(document.source, document.scan)` together
+— `document.source` (`new`/`ownArchive`/`looseJSON`) already existed for
+the "never rewrite an opened loose json into a zip" guard, it just wasn't
+consulted here too. Only `.new` reaches capture now; the other two get a
+`NoScanDataView` instead (showing whatever meta info is present, e.g. a
+lone heading, rather than nothing). **Verified rendered, not just reasoned
+about** — via a temporary debug harness swapping `ArchifestPlanApp`'s scene
+to render `ArchifestDocumentScene` directly against the exact
+`(source: .looseJSON, scan: nil)` shape (screenshotted, then reverted before
+committing) — needed because the real end-to-end path (open an external
+file) hits the same "stops at a human tap" limit noted above.
+
+**That fix immediately regressed new-document capture** — the owner hit it
+on a real device: creating a brand-new document also started showing
+`NoScanDataView` instead of capture. Cause: `DocumentGroup` round-trips a
+freshly-created document through disk — writes `.empty`'s zero-entry zip,
+then reads it straight back via `init(configuration:)`, the same read path
+an opened file takes. That path always tagged anything of our own UTType as
+`source = .ownArchive` regardless of content, so a brand-new document and a
+genuinely broken opened one became indistinguishable — exactly the bug the
+`source` field exists to prevent, just one layer further in than the first
+pass caught. Fixed in `init(configuration:)`: an **empty** archive (zero
+entries — exactly what `.empty` serializes to) now sets `source = .new`
+instead of `.ownArchive`; a non-empty one missing `scan.json` (a real
+partial/broken file) still correctly gets `.ownArchive`. Verified the load-
+bearing fact directly — `ArchifestZip.data(for: [])` round-trips through
+`ArchifestZip.read` as zero entries (22-byte EOCD-only archive, checked with
+the same standalone `swiftc` harness the zip module itself was verified
+with) — but **the specific interaction that triggers this (tapping "+" in
+the document browser) can't be simulated in this environment any more than
+opening a shared file can**; the fix is reasoned through and the underlying
+zip-level signal is concretely checked, but the owner's real-device tap is
+still what actually confirms it end-to-end. Said so plainly rather than
+claim more than was actually verified.
+
+### Performance: what made the capture screen hot and sluggish
+
+The owner reported the app slow and crashing after the capture redesign.
+Root-caused by auditing what that change introduced (the symptom itself
+can't be reproduced here — it only shows during live capture, which needs a
+LiDAR device). Four real defects, all self-inflicted by the previous commit:
+
+- **`.blur()` on the live `RoomCaptureView` — the main culprit.** Blurring a
+  live AR camera feed forces SwiftUI to rasterize that view into an
+  offscreen buffer *every frame*. On top of RoomPlan's already-heavy LiDAR +
+  ARKit load, that's exactly the "hot and sluggish" profile, and sustained
+  memory-bandwidth pressure like that is also a plausible jetsam kill (which
+  reads as a crash). It bought nothing either: before Start the session
+  isn't running, so there was no camera image to blur. Replaced with a plain
+  opaque scrim. **Don't put `.blur`, `.shadow`, or any offscreen-rendering
+  modifier on a live camera/AR view.**
+- **Hold-progress animation re-rendered the entire screen at 60fps.** The
+  progress value was `@State` on `CaptureScreen`, so animating it 0→1 over
+  2.5–3.5s re-evaluated that whole body — AR view subtree included — every
+  frame, for the length of every hold. Moved into its own small
+  `HoldProgress: ObservableObject` that only the badge observes.
+- **`roomCaptureView.captureSession.delegate = self` stole the delegate
+  `RoomCaptureView` uses internally** to drive its own live wireframe and
+  coaching UI. It was set only to learn when the session became ready, to
+  drive the (now removed) blur — real risk of degrading the capture view for
+  a purely cosmetic detail. Removed along with `isSessionReady`.
+- **Brightness ratchet**: `dimBrightnessSlightly()` stored "the original
+  brightness" on every `onAppear`, so a second appearance stored the
+  already-dimmed value and the screen stepped darker with no way back. Now
+  captured once and cleared on restore.
+
+### Crash: a corrupt `.archifp` used to trap, not throw
+
+Separate from the above, found while auditing: every offset in
+`ArchifestZip.read` comes from *inside the file being parsed*, and `Data`'s
+subscript/`subdata` **trap on an out-of-range index rather than throwing**.
+A truncated or hand-edited archive — entirely possible for a document type
+users can receive from anywhere — was a hard crash, not a catchable error.
+All such reads now go through bounds checks that throw
+`ArchifestZipError.invalidArchive`. Verified with the standalone `swiftc`
+harness: valid and empty archives still read correctly, while four
+truncation points and a corrupted central-directory offset all throw
+cleanly instead of crashing.
+
+### The Swift migration starts here (plan drawing)
+
+The owner has decided to move the app to Swift over time and chose the plan
+drawing as the first step. **This knowingly breaks the "one engine" rule for
+the plan maths**: `PlanGeometry.swift` is a direct port of `wallSegment`,
+`floorPolygon`, `planOrientation` and `northBearingFrom` from `geometry.js`,
+and both now exist. That is an accepted transitional cost, not an oversight
+— but until the web report is retired, **a change to the drawing maths has
+to be made in both places**. `HEADING_OFFSET_DEG` especially: it's the
+empirically calibrated constant that's still unverified against RoomPlan's
+own heading convention, and it must not be "fixed" in one engine alone.
+
+`PlanView.swift` draws it (SwiftUI `Canvas`) over `BlueprintBackground`, the
+backdrop the owner wrote. Two deliberate departures from the web plan, both
+asked for: **no dimension lines**, and **doors as dotted marks in the plane
+of the wall** rather than the leaf-and-swing-arc symbol. The swing side was
+always a drawing convention anyway — the scan records only `isOpen` — so
+dropping it removes an invented detail rather than real information. No
+furniture either, since the only current consumer is the thumbnail.
+
+Scope for now is exactly the thumbnail; the in-app report is still the web
+one. Verified by rendering the bundled fixture natively in Simulator and
+comparing against the web plan — same rooms, same wall positions.
+
+### Document thumbnails: the plan, portrait, without dimensions
+
+The owner asked for `.archifp` files to show their floor plan in the
+document browser (pointing at Numbers), specifically the **generated plan**
+rather than a screenshot of wherever the report was left, always portrait,
+and with no dimension lines ("bez kota").
+
+Two pieces:
+
+- **`PlanThumbnailRenderer`** (app target) rasterises `PlanView` with
+  `ImageRenderer` into a portrait PNG stored inside the `.archifp` as
+  `plan.png`. It originally drove the real web report in an offscreen
+  `WKWebView` and snapshotted the SVG out of it; that worked, but the three
+  traps below are all failure modes of *that* approach, and drawing natively
+  removed every one of them. They're kept on record because the WKWebView
+  snapshot trick is an obvious thing to reach for again.
+- **`ThumbnailProvider`** (new app-extension target) does no drawing at all:
+  it unzips `plan.png` and hands it back. That keeps it far inside the tight
+  time/memory budget a Quick Look thumbnail extension gets. `ArchifestZip.swift`
+  and `Shared/ArchifestEntry.swift` are compiled into both targets rather
+  than duplicated.
+
+Three traps hit while building this, all of which produced a *silently
+blank* tile while every other signal said success — worth knowing before
+touching this code:
+
+1. **A tall offscreen `WKWebView` doesn't paint its whole height.** WebKit
+   renders tiles around the viewport, so a plan sitting 1200pt down a
+   2400pt-tall view snapshots as empty. Hence the modest 500x900 view plus
+   CSS that lifts the plan to the top of the page.
+2. **`takeSnapshot` renders the view *with its alpha*.** Hiding the offscreen
+   web view with `alpha = 0` (or 0.01) produces a transparent/blank image.
+   It is hidden by being the bottom-most subview of the window instead —
+   full opacity, covered by the app's own UI.
+3. `.intersection` clamps the snapshot rect to the view's bounds, so a
+   mis-measured rect can't silently snapshot nothing again.
+
+Verified by rendering the bundled sample fixture through the real renderer
+in Simulator and looking at the output (it needs no RoomPlan). The first two
+attempts both returned a "successful" blank PNG — a reminder that "it
+returned data" is not evidence here. What still needs a device: the tile
+actually appearing in the document browser/Files, which needs the real
+document flow.
 
 ### Still needs a real LiDAR device (not verifiable from this environment)
 
@@ -174,6 +499,10 @@ open:
   calibration used).
 - Live capture UX (coaching overlay, session recovery, real-world accuracy).
 - The print button's actual PDF export/share sheet.
+- Actually installing/running on the device — code-signing itself is now
+  confirmed clean (`generic/platform=iOS` build resolves a real signing
+  identity and provisioning profile), but this environment has no physical
+  device attached to install onto.
 
 ## Known, deliberately not fixed
 

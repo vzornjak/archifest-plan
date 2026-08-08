@@ -5,7 +5,7 @@ name: ArchifestPlan
 options:
   bundleIdPrefix: hr.archifest
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "18.0"
   createIntermediateGroups: true
 
 configs:
@@ -16,7 +16,9 @@ targets:
   ArchifestPlan:
     type: application
     platform: iOS
-    deploymentTarget: "17.0"
+    # iOS 18: DocumentGroupLaunchScene (blueprint launch background). Every
+    # LiDAR-capable device runs 18, so this loses no supported hardware.
+    deploymentTarget: "18.0"
 
     # NOTE: xcodegen has no separate top-level "resources" target key (an
     # earlier version of this file assumed one, and xcodegen silently
@@ -27,10 +29,17 @@ targets:
       - path: ArchifestPlan/Capture
       - path: ArchifestPlan/Report
       - path: ArchifestPlan/Models
+      - path: ArchifestPlan/Document
+      - path: ArchifestPlan/Plan
+      - path: Shared
       - path: ArchifestPlan/Resources/Assets.xcassets
         buildPhase: resources
       - path: ArchifestPlan/Fixtures
         buildPhase: resources
+
+    dependencies:
+      - target: ThumbnailProvider
+        embed: true
 
     # xcodegen generates Info.plist itself from these properties (and
     # overwrites any file at `path` on every `generate` run) — do not
@@ -65,6 +74,32 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
 
+        # Document-based app (DocumentGroup) — own file format + can open a
+        # loose scan.json/meta.json. See ArchifestDocument.swift.
+        LSSupportsOpeningDocumentsInPlace: true
+        UISupportsDocumentBrowser: true
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: hr.archifest.plan.document
+            UTTypeDescription: "ARCHIFEST Plan snimka"
+            # Really is a zip (ArchifestZip.swift) — a person can rename
+            # .archifp to .zip and open it with any unzip tool, as asked.
+            UTTypeConformsTo:
+              - public.zip-archive
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - archifp
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: "ARCHIFEST Plan snimka"
+            LSItemContentTypes:
+              - hr.archifest.plan.document
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+          - CFBundleTypeName: "RoomPlan JSON"
+            LSItemContentTypes:
+              - public.json
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: hr.archifest.plan
@@ -74,8 +109,17 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGN_STYLE: Automatic
+        # The owner's own free "Personal Team" (Valentino Zornjak) — without
+        # this, xcodegen wipes whatever Xcode's GUI last set on every
+        # `generate`, and device builds fail with "Signing... requires a
+        # development team" even though Xcode showed it as configured.
+        DEVELOPMENT_TEAM: KT5643BW7L
         ENABLE_PREVIEWS: YES
         GENERATE_INFOPLIST_FILE: NO
+        # iCloud is declared here but inert on the current free Personal
+        # Team (Apple blocks the capability outright) — see the entitlements
+        # file and ios/README.md for what upgrading to enable it needs.
+        CODE_SIGN_ENTITLEMENTS: ArchifestPlan/Resources/ArchifestPlan.entitlements
 
     # Copies the four shared web files from the repo root into the app bundle
     # at build time, so the app can never ship maths that's out of sync with
@@ -106,6 +150,45 @@ targets:
           - $(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/app.js
           - $(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/geometry.js
           - $(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/style.css
+
+  # Quick Look thumbnail extension: makes .archifp files show their floor
+  # plan in the document browser and Files instead of a generic icon. It only
+  # unzips the plan.png the app already rendered — see ThumbnailProvider.swift
+  # for why the drawing isn't done here.
+  ThumbnailProvider:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "18.0"
+
+    sources:
+      - path: ThumbnailProvider
+      - path: Shared
+      # Shared with the app rather than duplicated — same reader, so the two
+      # can't disagree about what a .archifp contains.
+      - path: ArchifestPlan/Document/ArchifestZip.swift
+
+    info:
+      path: ThumbnailProvider/Info.plist
+      properties:
+        CFBundleDisplayName: ARCHIFEST Plan Thumbnails
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.quicklook.thumbnail
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ThumbnailProvider
+          NSExtensionAttributes:
+            QLSupportedContentTypes:
+              - hr.archifest.plan.document
+            QLThumbnailMinimumDimension: 0
+
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: hr.archifest.plan.ThumbnailProvider
+        PRODUCT_NAME: ThumbnailProvider
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: KT5643BW7L
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
 
 schemes:
   ArchifestPlan:
