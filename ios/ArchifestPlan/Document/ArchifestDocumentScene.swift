@@ -24,10 +24,11 @@ struct ArchifestDocumentScene: View {
       // by checking `document.source` (already tracked, just wasn't
       // consulted here) alongside `scan`.
       if RoomCaptureSession.isSupported {
-        CaptureScreen(projectName: document.name) { scan, meta, name in
+        CaptureScreen(projectName: document.name) { scan, meta, planImage, name in
           document.name = name
           document.scan = scan
           document.meta = meta
+          document.planImage = planImage
         }
       } else {
         UnsupportedCaptureView(onLoadSample: loadSample)

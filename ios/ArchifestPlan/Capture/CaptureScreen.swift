@@ -37,7 +37,7 @@ struct CaptureScreen: View {
   @StateObject private var coordinator = CaptureCoordinator()
   @StateObject private var hold = HoldProgress()
   let projectName: String
-  let onFinished: (_ scan: Data, _ meta: Data, _ name: String) -> Void
+  let onFinished: (_ scan: Data, _ meta: Data, _ planImage: Data?, _ name: String) -> Void
 
   @Environment(\.dismiss) private var dismiss
 

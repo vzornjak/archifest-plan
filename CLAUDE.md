@@ -130,9 +130,10 @@ open:
   — verified against Apple's current docs at implementation time, not memory.
   `CapturedStructure` has its own top-level `rooms: [CapturedRoom]`, so
   encoding it directly is already the shape `geometry.js` reads.
-- **Deployment target is iOS 17.0**, chosen for `StructureBuilder`. No real
-  cost: every LiDAR-capable device (iPhone 12 Pro+, iPad Pro 2020+) already
-  supports iOS 17+.
+- **Deployment target is iOS 18.0.** Originally 17.0 (chosen for
+  `StructureBuilder`), raised to 18.0 for `DocumentGroupLaunchScene` (the
+  blueprint launch background, below). No real cost either way: every
+  LiDAR-capable device (iPhone 12 Pro+, iPad Pro 2020+) already runs iOS 18+.
 - `RoomCaptureViewDelegate` unexpectedly inherits from **`NSCoding`**
   (confirmed against Apple's docs, still surprising for a delegate protocol)
   — a conforming type needs `init?(coder:)`/`encode(with:)` stubs, and under
@@ -200,6 +201,18 @@ app's own iCloud Drive folder, and able to open a loose `scan.json`/
   document goes straight to `CaptureScreen` (or, where RoomPlan isn't
   supported, the same "Učitaj uzorak" fallback) — no separate "new scan"
   button or name-entry step; that **is** the new-document flow now.
+- **Blueprint launch background.** The owner asked for artwork on that launch
+  screen (pointing at Numbers again). `DocumentGroup` on iOS 17 has no public
+  background hook; iOS 18's `DocumentGroupLaunchScene` does (`background:` +
+  the default actions), which is why the deployment target was raised to 18.
+  The backdrop is drawn in pure SwiftUI (`BlueprintBackground.swift`, a
+  `Canvas`), **not** an image asset — chosen over dropping in the owner's
+  Gemini PNG so it scales to any screen, stays in the "no dependencies /
+  tunable in code" spirit, and can be kept deliberately pale (the owner asked
+  for it "a touch lighter") so the system's title/buttons/recent-grid stay
+  legible on top. `#Preview`-verified in Xcode; the live launch screen still
+  needs a device/Simulator run to confirm the system UI composites over it as
+  expected.
 - **iCloud needs a paid Apple Developer account — and isn't merely inert on a
   free one, it breaks signing.** First pass declared the capability in
   `ArchifestPlan.entitlements` anyway, reasoning it'd stay harmless until
@@ -405,6 +418,50 @@ All such reads now go through bounds checks that throw
 harness: valid and empty archives still read correctly, while four
 truncation points and a corrupted central-directory offset all throw
 cleanly instead of crashing.
+
+### Document thumbnails: the plan, portrait, without dimensions
+
+The owner asked for `.archifp` files to show their floor plan in the
+document browser (pointing at Numbers), specifically the **generated plan**
+rather than a screenshot of wherever the report was left, always portrait,
+and with no dimension lines ("bez kota").
+
+Two pieces:
+
+- **`PlanThumbnailRenderer`** (app target) renders the plan once, when a scan
+  finishes, into a portrait PNG stored inside the `.archifp` as `plan.png`.
+  It drives the *real* report in an offscreen `WKWebView` — so the picture
+  comes from `app.js`, not a second drawing implementation — then hides
+  everything around the plan (title block, other panels, legend, and
+  `#plan-svg .sv-dim`/`.sv-dimtxt` for the dimensions), forces the portrait
+  toggle, and snapshots just the plan.
+- **`ThumbnailProvider`** (new app-extension target) does no drawing at all:
+  it unzips `plan.png` and hands it back. That keeps it far inside the tight
+  time/memory budget a Quick Look thumbnail extension gets. `ArchifestZip.swift`
+  and `Shared/ArchifestEntry.swift` are compiled into both targets rather
+  than duplicated.
+
+Three traps hit while building this, all of which produced a *silently
+blank* tile while every other signal said success — worth knowing before
+touching this code:
+
+1. **A tall offscreen `WKWebView` doesn't paint its whole height.** WebKit
+   renders tiles around the viewport, so a plan sitting 1200pt down a
+   2400pt-tall view snapshots as empty. Hence the modest 500x900 view plus
+   CSS that lifts the plan to the top of the page.
+2. **`takeSnapshot` renders the view *with its alpha*.** Hiding the offscreen
+   web view with `alpha = 0` (or 0.01) produces a transparent/blank image.
+   It is hidden by being the bottom-most subview of the window instead —
+   full opacity, covered by the app's own UI.
+3. `.intersection` clamps the snapshot rect to the view's bounds, so a
+   mis-measured rect can't silently snapshot nothing again.
+
+Verified by rendering the bundled sample fixture through the real renderer
+in Simulator and looking at the output (it needs no RoomPlan). The first two
+attempts both returned a "successful" blank PNG — a reminder that "it
+returned data" is not evidence here. What still needs a device: the tile
+actually appearing in the document browser/Files, which needs the real
+document flow.
 
 ### Still needs a real LiDAR device (not verifiable from this environment)
 

@@ -8,10 +8,16 @@
 
 /* Begin PBXBuildFile section */
 		08374CCD738F7937C527FA78 /* ArchifestPlanApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D4B9498E827B82929A67F6E /* ArchifestPlanApp.swift */; };
+		0ABF59CDE14628695C0744F0 /* ArchifestEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DF77C993B6A863E1F231264 /* ArchifestEntry.swift */; };
+		1013A9634BDD34BD03D5038D /* BlueprintBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8191AFED746DED604294DC6 /* BlueprintBackground.swift */; };
+		1F2CB29A882875117CC7B961 /* ThumbnailProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B9A385526DAE5CD1917E629 /* ThumbnailProvider.swift */; };
 		23B543DBADE4A562797C9460 /* ScanExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 024C9A24D440180901965D5D /* ScanExport.swift */; };
 		3114B39E34A8867A1D67CF7D /* CaptureCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4471CBF485BBC71400BA7FC /* CaptureCoordinator.swift */; };
 		5D21C6A79CE1E4B0918088DC /* CaptureScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ECC28E7582743C40860A980 /* CaptureScreen.swift */; };
+		62D948CD6E6E02736A25C2FA /* ArchifestEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DF77C993B6A863E1F231264 /* ArchifestEntry.swift */; };
+		69A4F6FFCA1E848E603C1A59 /* PlanThumbnailRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 093EAE4BB996CE5A4D1A3357 /* PlanThumbnailRenderer.swift */; };
 		6ABF2BFFE67EBD9DA1186BA2 /* sample-scan-meta.json in Resources */ = {isa = PBXBuildFile; fileRef = 2B629790D9F4578974257536 /* sample-scan-meta.json */; };
+		6E5D92B927103F23F9E7F5CC /* ArchifestZip.swift in Sources */ = {isa = PBXBuildFile; fileRef = B945629B8F5C18C28759EBBD /* ArchifestZip.swift */; };
 		7E9B3AF5798A1A548C7BBDFF /* sample-scan.json in Resources */ = {isa = PBXBuildFile; fileRef = A4585C071A148969CA130DCF /* sample-scan.json */; };
 		82800C520CF65284637554B5 /* ToolbarModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03EB1D5BEA565B8270DBD1F2 /* ToolbarModifiers.swift */; };
 		828B2C480F3231A1D5DB5072 /* RoomCaptureRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59820D412309E0E8AB49394C /* RoomCaptureRepresentable.swift */; };
@@ -20,28 +26,59 @@
 		9B4A99598096951D26A6DE13 /* HeadingReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 279045E9861EBAE68F41E1F1 /* HeadingReader.swift */; };
 		9C3117EAF425F44E2D252201 /* ScanMeta.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE01015ECFC9ED87C747C3F9 /* ScanMeta.swift */; };
 		AFEC6BF0CEA4B86863E3A4E8 /* ReportWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 539F84A6D01C8A0806A5D2C3 /* ReportWebView.swift */; };
+		D986A8AA55607BC28BDAB7BA /* ThumbnailProvider.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B3EA770F3A1810589E3DE57C /* ThumbnailProvider.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E77C56C7474103056D1D157E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8C85A35BDBF20CC3096169D2 /* Assets.xcassets */; };
 		EC5B93581411FB2A370EC421 /* ArchifestDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC559C5B334895D63A41059E /* ArchifestDocument.swift */; };
 		F3C168628CEDB50F5EB57C93 /* ArchifestDocumentScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B70E41298DB6F8783F6C320 /* ArchifestDocumentScene.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		01C5203D4964F29E97F4CF13 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DA6A50CBF3824BFB9EDD09B4 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 266EAF89556E2B6FEC330487;
+			remoteInfo = ThumbnailProvider;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		1E3748832F656EAA5177AC4B /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				D986A8AA55607BC28BDAB7BA /* ThumbnailProvider.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		024C9A24D440180901965D5D /* ScanExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanExport.swift; sourceTree = "<group>"; };
 		03EB1D5BEA565B8270DBD1F2 /* ToolbarModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarModifiers.swift; sourceTree = "<group>"; };
+		093EAE4BB996CE5A4D1A3357 /* PlanThumbnailRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanThumbnailRenderer.swift; sourceTree = "<group>"; };
 		0D4B9498E827B82929A67F6E /* ArchifestPlanApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchifestPlanApp.swift; sourceTree = "<group>"; };
 		279045E9861EBAE68F41E1F1 /* HeadingReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadingReader.swift; sourceTree = "<group>"; };
 		2B629790D9F4578974257536 /* sample-scan-meta.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "sample-scan-meta.json"; sourceTree = "<group>"; };
+		3DF77C993B6A863E1F231264 /* ArchifestEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchifestEntry.swift; sourceTree = "<group>"; };
 		48D9375AC02944478C28798A /* ReportScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportScreen.swift; sourceTree = "<group>"; };
 		539F84A6D01C8A0806A5D2C3 /* ReportWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportWebView.swift; sourceTree = "<group>"; };
 		59820D412309E0E8AB49394C /* RoomCaptureRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomCaptureRepresentable.swift; sourceTree = "<group>"; };
+		5CF92BCEF71A1899F3B84B85 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		6B70E41298DB6F8783F6C320 /* ArchifestDocumentScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchifestDocumentScene.swift; sourceTree = "<group>"; };
 		7E2180B90A739EF7321EB415 /* ArchifestPlan.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = ArchifestPlan.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8B9A385526DAE5CD1917E629 /* ThumbnailProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailProvider.swift; sourceTree = "<group>"; };
 		8C85A35BDBF20CC3096169D2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8ECC28E7582743C40860A980 /* CaptureScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureScreen.swift; sourceTree = "<group>"; };
 		A4585C071A148969CA130DCF /* sample-scan.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "sample-scan.json"; sourceTree = "<group>"; };
+		B3EA770F3A1810589E3DE57C /* ThumbnailProvider.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ThumbnailProvider.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B945629B8F5C18C28759EBBD /* ArchifestZip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchifestZip.swift; sourceTree = "<group>"; };
 		BE01015ECFC9ED87C747C3F9 /* ScanMeta.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanMeta.swift; sourceTree = "<group>"; };
 		D4471CBF485BBC71400BA7FC /* CaptureCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCoordinator.swift; sourceTree = "<group>"; };
+		D8191AFED746DED604294DC6 /* BlueprintBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlueprintBackground.swift; sourceTree = "<group>"; };
 		EC559C5B334895D63A41059E /* ArchifestDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchifestDocument.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -57,6 +94,7 @@
 		0D652E2A51FE4980ABA0195D /* Report */ = {
 			isa = PBXGroup;
 			children = (
+				093EAE4BB996CE5A4D1A3357 /* PlanThumbnailRenderer.swift */,
 				48D9375AC02944478C28798A /* ReportScreen.swift */,
 				539F84A6D01C8A0806A5D2C3 /* ReportWebView.swift */,
 				024C9A24D440180901965D5D /* ScanExport.swift */,
@@ -68,8 +106,17 @@
 			isa = PBXGroup;
 			children = (
 				7E2180B90A739EF7321EB415 /* ArchifestPlan.app */,
+				B3EA770F3A1810589E3DE57C /* ThumbnailProvider.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		2ABA0D48E548F54306CFFDA5 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				3DF77C993B6A863E1F231264 /* ArchifestEntry.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 		2B8825AE7FFE680DDC091279 /* Fixtures */ = {
@@ -81,10 +128,20 @@
 			path = Fixtures;
 			sourceTree = "<group>";
 		};
+		360760F3559C9AD9FBB24286 /* ThumbnailProvider */ = {
+			isa = PBXGroup;
+			children = (
+				5CF92BCEF71A1899F3B84B85 /* Info.plist */,
+				8B9A385526DAE5CD1917E629 /* ThumbnailProvider.swift */,
+			);
+			path = ThumbnailProvider;
+			sourceTree = "<group>";
+		};
 		3BF5A90DD61E02E6B40D66AE /* App */ = {
 			isa = PBXGroup;
 			children = (
 				0D4B9498E827B82929A67F6E /* ArchifestPlanApp.swift */,
+				D8191AFED746DED604294DC6 /* BlueprintBackground.swift */,
 				03EB1D5BEA565B8270DBD1F2 /* ToolbarModifiers.swift */,
 			);
 			path = App;
@@ -113,6 +170,8 @@
 			isa = PBXGroup;
 			children = (
 				8C5CDC32FC0976C1B90D0C25 /* ArchifestPlan */,
+				2ABA0D48E548F54306CFFDA5 /* Shared */,
+				360760F3559C9AD9FBB24286 /* ThumbnailProvider */,
 				210CA97EA99B8F8A271AA25D /* Products */,
 			);
 			sourceTree = "<group>";
@@ -144,6 +203,23 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		266EAF89556E2B6FEC330487 /* ThumbnailProvider */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7808F5E20EB0567A0657135F /* Build configuration list for PBXNativeTarget "ThumbnailProvider" */;
+			buildPhases = (
+				19261373B986AD148BD09B6F /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ThumbnailProvider;
+			packageProductDependencies = (
+			);
+			productName = ThumbnailProvider;
+			productReference = B3EA770F3A1810589E3DE57C /* ThumbnailProvider.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		79B4339424BDEB9A4DF0ABC6 /* ArchifestPlan */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 7799939CE1E9701736CD217B /* Build configuration list for PBXNativeTarget "ArchifestPlan" */;
@@ -151,10 +227,12 @@
 				0310C36C05357BACBBCBA658 /* Copy web report files */,
 				BA1D397916CF2E859094C49B /* Sources */,
 				BB732F074CE05E3F559F0CCB /* Resources */,
+				1E3748832F656EAA5177AC4B /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				79152E13D8CA26F010013A74 /* PBXTargetDependency */,
 			);
 			name = ArchifestPlan;
 			packageProductDependencies = (
@@ -172,6 +250,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					266EAF89556E2B6FEC330487 = {
+						DevelopmentTeam = KT5643BW7L;
+						ProvisioningStyle = Automatic;
+					};
 					79B4339424BDEB9A4DF0ABC6 = {
 						DevelopmentTeam = KT5643BW7L;
 						ProvisioningStyle = Automatic;
@@ -193,6 +275,7 @@
 			projectRoot = "";
 			targets = (
 				79B4339424BDEB9A4DF0ABC6 /* ArchifestPlan */,
+				266EAF89556E2B6FEC330487 /* ThumbnailProvider */,
 			);
 		};
 /* End PBXProject section */
@@ -240,17 +323,30 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		19261373B986AD148BD09B6F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				62D948CD6E6E02736A25C2FA /* ArchifestEntry.swift in Sources */,
+				6E5D92B927103F23F9E7F5CC /* ArchifestZip.swift in Sources */,
+				1F2CB29A882875117CC7B961 /* ThumbnailProvider.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		BA1D397916CF2E859094C49B /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				EC5B93581411FB2A370EC421 /* ArchifestDocument.swift in Sources */,
 				F3C168628CEDB50F5EB57C93 /* ArchifestDocumentScene.swift in Sources */,
+				0ABF59CDE14628695C0744F0 /* ArchifestEntry.swift in Sources */,
 				08374CCD738F7937C527FA78 /* ArchifestPlanApp.swift in Sources */,
 				9008ACDACDC0E78B0C0C6C3E /* ArchifestZip.swift in Sources */,
+				1013A9634BDD34BD03D5038D /* BlueprintBackground.swift in Sources */,
 				3114B39E34A8867A1D67CF7D /* CaptureCoordinator.swift in Sources */,
 				5D21C6A79CE1E4B0918088DC /* CaptureScreen.swift in Sources */,
 				9B4A99598096951D26A6DE13 /* HeadingReader.swift in Sources */,
+				69A4F6FFCA1E848E603C1A59 /* PlanThumbnailRenderer.swift in Sources */,
 				88770C2AD4BE193D7708B01D /* ReportScreen.swift in Sources */,
 				AFEC6BF0CEA4B86863E3A4E8 /* ReportWebView.swift in Sources */,
 				828B2C480F3231A1D5DB5072 /* RoomCaptureRepresentable.swift in Sources */,
@@ -261,6 +357,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		79152E13D8CA26F010013A74 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 266EAF89556E2B6FEC330487 /* ThumbnailProvider */;
+			targetProxy = 01C5203D4964F29E97F4CF13 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		061C868CF1A008EB342417D2 /* Release */ = {
@@ -308,7 +412,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -318,6 +422,28 @@
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
+		};
+		20780DFA24DBF840E185E9A6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = KT5643BW7L;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ThumbnailProvider/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = hr.archifest.plan.ThumbnailProvider;
+				PRODUCT_NAME = ThumbnailProvider;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
 		};
 		3BD6AE65CA59436DC41141F7 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -331,7 +457,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ArchifestPlan/Resources/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -356,7 +482,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ArchifestPlan/Resources/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -420,7 +546,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -432,6 +558,28 @@
 			};
 			name = Debug;
 		};
+		FA5440FF2F6564939D60B43D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = KT5643BW7L;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ThumbnailProvider/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = hr.archifest.plan.ThumbnailProvider;
+				PRODUCT_NAME = ThumbnailProvider;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -440,6 +588,15 @@
 			buildConfigurations = (
 				3BD6AE65CA59436DC41141F7 /* Debug */,
 				3DF832AC29DAB06B1538DB51 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		7808F5E20EB0567A0657135F /* Build configuration list for PBXNativeTarget "ThumbnailProvider" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				20780DFA24DBF840E185E9A6 /* Debug */,
+				FA5440FF2F6564939D60B43D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

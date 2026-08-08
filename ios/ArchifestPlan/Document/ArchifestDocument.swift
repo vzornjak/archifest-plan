@@ -32,16 +32,22 @@ struct ArchifestDocument: FileDocument, Sendable {
   var name: String
   var scan: Data?
   var meta: Data?
+  /// Portrait PNG of the floor plan, rendered once when the scan finishes
+  /// (see PlanThumbnailRenderer) and read back by the thumbnail extension.
+  /// Derived data, deliberately: it's what lets the extension stay trivial
+  /// instead of re-running the whole web report to draw a tile.
+  var planImage: Data?
   private(set) var source: Source
 
   static var empty: ArchifestDocument {
     ArchifestDocument(name: "", scan: nil, meta: nil, source: .new)
   }
 
-  init(name: String, scan: Data?, meta: Data?, source: Source) {
+  init(name: String, scan: Data?, meta: Data?, planImage: Data? = nil, source: Source) {
     self.name = name
     self.scan = scan
     self.meta = meta
+    self.planImage = planImage
     self.source = source
   }
 
@@ -53,8 +59,9 @@ struct ArchifestDocument: FileDocument, Sendable {
 
     if configuration.contentType.conforms(to: .archifestDocument) {
       let entries = try ArchifestZip.read(data)
-      self.scan = entries["scan.json"]
-      self.meta = entries["meta.json"]
+      self.scan = entries[ArchifestEntry.scan]
+      self.meta = entries[ArchifestEntry.meta]
+      self.planImage = entries[ArchifestEntry.planImage]
       // DocumentGroup round-trips a freshly-created document through disk —
       // it writes `.empty`'s zero-entry zip, then reads it straight back via
       // this same initializer, so a brand-new document arrives here too, not
@@ -84,8 +91,9 @@ struct ArchifestDocument: FileDocument, Sendable {
 
   func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
     var entries: [ArchifestZip.Entry] = []
-    if let scan { entries.append(.init(name: "scan.json", data: scan)) }
-    if let meta { entries.append(.init(name: "meta.json", data: meta)) }
+    if let scan { entries.append(.init(name: ArchifestEntry.scan, data: scan)) }
+    if let meta { entries.append(.init(name: ArchifestEntry.meta, data: meta)) }
+    if let planImage { entries.append(.init(name: ArchifestEntry.planImage, data: planImage)) }
     return FileWrapper(regularFileWithContents: ArchifestZip.data(for: entries))
   }
 }

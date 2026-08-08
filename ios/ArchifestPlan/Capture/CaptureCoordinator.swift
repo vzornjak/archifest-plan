@@ -33,7 +33,7 @@ final class CaptureCoordinator: NSObject, ObservableObject {
   /// call — the coordinator itself decides when a session is done (the
   /// Stop button, via `stopSession()`), so it's the one that should invoke
   /// it, not something the screen has to orchestrate.
-  var onFinished: ((_ scan: Data, _ meta: Data, _ name: String) -> Void)?
+  var onFinished: ((_ scan: Data, _ meta: Data, _ planImage: Data?, _ name: String) -> Void)?
 
   override init() {
     super.init()
@@ -135,8 +135,13 @@ final class CaptureCoordinator: NSObject, ObservableObject {
           rooms: rooms
         )
         let metaData = try JSONEncoder().encode(meta)
+        // Rendered here, while "Obrada snimke…" is still up, so a brand-new
+        // scan already has its thumbnail the moment it lands in the browser.
+        // Returns nil on failure rather than throwing — a missing tile is
+        // cosmetic and must never cost the user their scan.
+        let planImage = await PlanThumbnailRenderer.render(scanJSON: payload, metaJSON: metaData)
         self.isMerging = false
-        self.onFinished?(payload, metaData, name.isEmpty ? "snimka" : name)
+        self.onFinished?(payload, metaData, planImage, name.isEmpty ? "snimka" : name)
       } catch {
         self.isMerging = false
         self.errorMessage = error.localizedDescription

@@ -7,6 +7,15 @@ import SwiftUI
 @main
 struct ArchifestPlanApp: App {
   var body: some Scene {
+    // The Numbers-style launch screen (app title, "Izradi dokument", recent
+    // documents) painted over our own blueprint backdrop. iOS 18+ API; it sits
+    // alongside the DocumentGroup and replaces the plain default launch UI.
+    DocumentGroupLaunchScene("ARCHIFEST Plan") {
+      DefaultDocumentGroupLaunchActions()
+    } background: {
+      BlueprintBackground()
+    }
+
     DocumentGroup(newDocument: ArchifestDocument.empty) { file in
       ArchifestDocumentScene(document: file.$document, fileURL: file.fileURL)
     }
